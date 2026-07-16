@@ -193,6 +193,114 @@ footer {
   background: #111;
 }
 
+/* —— Offsets browser —— */
+.offsets-page {
+  width: min(900px, calc(100% - 2rem));
+}
+
+.offsets-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.85rem;
+  margin-bottom: 0.85rem;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 12rem;
+}
+
+.field-grow {
+  flex: 1 1 14rem;
+}
+
+.field span {
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.field select,
+.field input {
+  appearance: none;
+  width: 100%;
+  padding: 0.7rem 0.85rem;
+  border: 1px solid #2a2a2a;
+  border-radius: 2px;
+  background: #111;
+  color: var(--text);
+  font: inherit;
+  font-size: 0.95rem;
+}
+
+.field select:focus,
+.field input:focus {
+  outline: none;
+  border-color: #fff;
+}
+
+.field select:disabled,
+.field input:disabled {
+  opacity: 0.5;
+}
+
+.offsets-meta {
+  margin: 0 0 0.85rem;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.offsets-table-wrap {
+  border: 1px solid #2a2a2a;
+  max-height: min(62vh, 640px);
+  overflow: auto;
+}
+
+.offsets-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.offsets-table th,
+.offsets-table td {
+  padding: 0.65rem 0.85rem;
+  text-align: left;
+  border-bottom: 1px solid #1c1c1c;
+}
+
+.offsets-table th {
+  position: sticky;
+  top: 0;
+  background: #111;
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  z-index: 1;
+}
+
+.flag-name {
+  word-break: break-word;
+}
+
+.flag-offset {
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 0.85rem;
+  white-space: nowrap;
+  color: #cfcfcf;
+}
+
+.empty-row td {
+  color: var(--muted);
+  text-align: center;
+  padding: 2rem 1rem;
+}
+
 @keyframes fade {
   from {
     opacity: 0;

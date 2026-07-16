@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Offsets — Leviathan</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body class="page">
+  <header class="bar">
+    <a class="back" href="index.html">← Leviathan</a>
+  </header>
+
+  <main class="content offsets-page">
+    <h1>Offsets</h1>
+    <p class="lede">Browse FFlag offsets by Roblox client version.</p>
+
+    <div class="offsets-controls">
+      <label class="field">
+        <span>Version</span>
+        <select id="version-select" disabled>
+          <option value="">Loading versions…</option>
+        </select>
+      </label>
+      <label class="field field-grow">
+        <span>Search</span>
+        <input id="flag-search" type="search" placeholder="Filter flags…" disabled autocomplete="off" />
+      </label>
+    </div>
+
+    <p class="offsets-meta" id="offsets-meta">Pick a version to load offsets.</p>
+
+    <div class="offsets-table-wrap">
+      <table class="offsets-table" aria-label="Flag offsets">
+        <thead>
+          <tr>
+            <th>Flag</th>
+            <th>Offset</th>
+          </tr>
+        </thead>
+        <tbody id="offsets-body">
+          <tr class="empty-row"><td colspan="2">No data yet</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </main>
+
+  <script src="offsets.js"></script>
+</body>
+</html>
