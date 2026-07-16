@@ -656,20 +656,26 @@ HttpRequest(method, url, body := "", contentType := "") {
 Sha256Hex(text) {
     inFile := A_Temp "\leviathan_auth_in.txt"
     outFile := A_Temp "\leviathan_auth_out.txt"
+    psFile := A_Temp "\leviathan_auth_hash.ps1"
     try FileDelete(inFile)
     try FileDelete(outFile)
+    try FileDelete(psFile)
+
     f := FileOpen(inFile, "w", "UTF-8-RAW")
+    if (!f)
+        throw Error("Cannot write hash input")
     f.Write(text)
     f.Close()
-    ps :=
-    (
-        "$in = '" inFile "'; $out = '" outFile "';
-        $bytes = [IO.File]::ReadAllBytes($in);
-        $hash = [Security.Cryptography.SHA256]::Create().ComputeHash($bytes);
-        $hex = ([BitConverter]::ToString($hash)).Replace('-','').ToLower();
-        [IO.File]::WriteAllText($out, $hex);
-    )
-    RunWait('powershell -NoProfile -ExecutionPolicy Bypass -Command ' Chr(34) ps Chr(34), , "Hide")
+
+    ps := "$in = '" inFile "'`n"
+        . "$out = '" outFile "'`n"
+        . "$bytes = [IO.File]::ReadAllBytes($in)`n"
+        . "$hash = [Security.Cryptography.SHA256]::Create().ComputeHash($bytes)`n"
+        . "$hex = ([BitConverter]::ToString($hash)).Replace('-','').ToLower()`n"
+        . "[IO.File]::WriteAllText($out, $hex)`n"
+    FileAppend(ps, psFile, "UTF-8")
+
+    RunWait('powershell.exe -NoProfile -ExecutionPolicy Bypass -File "' psFile '"', , "Hide")
     if (!FileExist(outFile))
         throw Error("Hash failed")
     return Trim(FileRead(outFile, "UTF-8"))
