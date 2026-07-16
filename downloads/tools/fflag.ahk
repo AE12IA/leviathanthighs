@@ -50,7 +50,7 @@ global IsGuiHidden := false
 
 ; —— Auth (Leviathan) ——
 AUTH_USERS_URL := "https://raw.githubusercontent.com/AE12IA/leviathanthighs/main/auth/users.json"
-AUTH_API_URL   := ""  ; optional Cloudflare Worker base URL, e.g. https://xxx.workers.dev
+AUTH_API_URL   := "https://gentle-mouse-f361.fnaf22foxy.workers.dev"
 AUTH_SALT      := "leviathan-auth-v1"
 AuthSessionFile := AppDir "\auth_session.json"
 
@@ -594,19 +594,14 @@ ShowLoginDialog() {
             return
         }
         errTxt.Value := "Checking…"
-        ok := false
-        try ok := VerifyLogin(u, p)
-        catch as e {
-            errTxt.Value := "Login error: " e.Message
-            return
+        try {
+            VerifyLogin(u, p)
+            SaveSession(u)
+            result := "ok"
+            L.Destroy()
+        } catch as e {
+            errTxt.Value := e.Message
         }
-        if (!ok) {
-            errTxt.Value := "Invalid username or password."
-            return
-        }
-        SaveSession(u)
-        result := "ok"
-        L.Destroy()
     }
     loginBtn.OnEvent("Click", doLogin)
     cancelBtn.OnEvent("Click", (*) => (result := "cancel", L.Destroy()))
@@ -619,23 +614,62 @@ ShowLoginDialog() {
 
 VerifyLogin(username, password) {
     global AUTH_API_URL, AUTH_USERS_URL
+    hwid := GetHardwareId()
+    if (hwid = "")
+        throw Error("Could not read PC hardware ID.")
+
     if (AUTH_API_URL != "") {
-        body := '{"username":"' EscapeJson(username) '","password":"' EscapeJson(password) '"}'
+        body := '{"username":"' EscapeJson(username)
+            . '","password":"' EscapeJson(password)
+            . '","hwid":"' EscapeJson(hwid) '"}'
         resp := HttpRequest("POST", RTrim(AUTH_API_URL, "/") "/login", body, "application/json")
         if (InStr(resp, '"ok":true') || InStr(resp, '"ok": true'))
             return true
-        return false
+        if (InStr(resp, "locked to another") || InStr(resp, "another PC") || InStr(resp, "hardware"))
+            throw Error("This account is locked to another PC.")
+        if (InStr(resp, "Invalid"))
+            throw Error("Invalid username or password.")
+        throw Error("Login failed. Try again.")
     }
 
+    ; Fallback (read-only): check password + existing hwid, cannot bind first time
     raw := HttpRequest("GET", AUTH_USERS_URL "?t=" UnixNow(), "", "")
     users := JsonParseArr(raw)
     for u in users {
         uname := u.Has("username") ? String(u["username"]) : ""
         pass := u.Has("password") ? String(u["password"]) : ""
-        if (StrLower(uname) = StrLower(username) && pass = password)
-            return true
+        if (StrLower(uname) != StrLower(username) || pass != password)
+            continue
+        bound := u.Has("hwid") ? Trim(String(u["hwid"])) : ""
+        if (bound = "")
+            throw Error("Auth API required to bind this PC. Contact owner.")
+        if (bound != hwid)
+            throw Error("This account is locked to another PC.")
+        return true
     }
-    return false
+    throw Error("Invalid username or password.")
+}
+
+GetHardwareId() {
+    guid := ""
+    try guid := RegRead("HKLM\SOFTWARE\Microsoft\Cryptography", "MachineGuid")
+    catch {
+        guid := ""
+    }
+    serial := ""
+    try serial := String(DriveGetSerial("C:"))
+    catch {
+        serial := ""
+    }
+    raw := Trim(guid) "|" Trim(A_ComputerName) "|" Trim(serial)
+    if (raw = "||" || raw = "")
+        return ""
+    try {
+        return Sha256Hex(raw)
+    } catch {
+        clean := RegExReplace(raw, "[^A-Za-z0-9\-]", "")
+        return SubStr(clean, 1, 64)
+    }
 }
 
 HttpRequest(method, url, body := "", contentType := "") {
