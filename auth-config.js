@@ -1,8 +1,6 @@
-// Auth API config for register.html
-// Prefer Cloudflare Worker (see auth/worker.js) — set apiUrl.
-// Emergency only: githubToken on a PUBLIC site can be stolen. Prefer Worker + secret.
+// Auth API — Cloudflare Worker
 window.LEVIATHAN_AUTH = {
-  apiUrl: "",
+  apiUrl: "https://gentle-mouse-f361.fnaf22foxy.workers.dev",
   githubToken: "",
   usersUrl: "https://raw.githubusercontent.com/AE12IA/leviathanthighs/main/auth/users.json"
 };
