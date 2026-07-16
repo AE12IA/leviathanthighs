@@ -1,6 +1,7 @@
 (() => {
   const NAMESPACE = "ae12ia-leviathan";
   const BASE = "https://abacus.jasoncameron.dev";
+  const SEEN_PREFIX = "leviathan-dl-counted:";
 
   function formatCount(n) {
     return Number(n || 0).toLocaleString("en-US");
@@ -10,6 +11,22 @@
     document.querySelectorAll(`[data-count-for="${key}"]`).forEach((el) => {
       el.textContent = formatCount(value);
     });
+  }
+
+  function alreadyCounted(key) {
+    try {
+      return localStorage.getItem(SEEN_PREFIX + key) === "1";
+    } catch {
+      return false;
+    }
+  }
+
+  function markCounted(key) {
+    try {
+      localStorage.setItem(SEEN_PREFIX + key, "1");
+    } catch {
+      /* private mode / blocked storage */
+    }
   }
 
   async function getCount(key) {
@@ -67,8 +84,14 @@
 
         startDownload(href, filename);
 
+        // Only count once per browser/profile on this device
+        if (alreadyCounted(key)) return;
+
         const next = await hitCount(key);
-        if (next !== null) setCount(key, next);
+        if (next !== null) {
+          markCounted(key);
+          setCount(key, next);
+        }
       });
     });
   }
