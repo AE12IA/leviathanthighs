@@ -4,6 +4,24 @@
   const RAW = (branch) =>
     `https://raw.githubusercontent.com/${REPO}/${encodeURIComponent(branch)}/offsets.json`;
 
+  // Instant fallback if versions.json is missing/cached oddly
+  const BUILTIN_VERSIONS = [
+    "version-e068ebae24354cbb",
+    "version-ddf02245bdbb428c",
+    "version-b1da31c4a8514991",
+    "version-ad5d3e2906444472",
+    "version-933201e2e36849e8",
+    "version-90f2fddd3b244ff6",
+    "version-8884371d30284041",
+    "version-76173e47a79145c7",
+    "version-5cf2272675e145f5",
+    "version-4b6315bf1f0a4dbb",
+    "version-460909c4fe904aae",
+    "version-36a2600cebf1487d",
+    "version-2b1721d47abf49aa",
+    "version-1a951716f19e4638",
+  ];
+
   const picker = document.getElementById("version-picker");
   const trigger = document.getElementById("version-trigger");
   const valueEl = document.getElementById("version-value");
@@ -43,6 +61,26 @@
     picker.classList.toggle("open", open);
     trigger.setAttribute("aria-expanded", open ? "true" : "false");
     menu.hidden = !open;
+  }
+
+  function applyVersions(list, { selected } = {}) {
+    const next = [...new Set(list.filter((name) => /^version-/i.test(name)))].sort((a, b) =>
+      b.localeCompare(a)
+    );
+    if (!next.length) return false;
+
+    versions = next;
+    trigger.disabled = false;
+    renderMenu();
+
+    if (selected && versions.includes(selected)) {
+      valueEl.textContent = selected;
+    } else if (!selectedVersion) {
+      valueEl.textContent = "Select a version…";
+    }
+
+    setMeta(`${versions.length} versions available`);
+    return true;
   }
 
   function renderMenu() {
@@ -122,30 +160,38 @@
     body.innerHTML = `<div class="code-lines">${html}</div>`;
   }
 
-  async function loadVersions() {
+  async function loadVersionsInstant() {
+    // 1) Built-in list → picker usable immediately
+    applyVersions(BUILTIN_VERSIONS);
+
+    // 2) Same-origin versions.json (fast, no GitHub API)
     try {
-      const res = await fetch(BRANCHES_URL);
-      if (!res.ok) throw new Error(`GitHub API ${res.status}`);
-      const branches = await res.json();
-      versions = branches
-        .map((b) => b.name)
-        .filter((name) => /^version-/i.test(name))
-        .sort((a, b) => b.localeCompare(a));
-
-      if (!versions.length) {
-        valueEl.textContent = "No version branches found";
-        setMeta("No version-* branches in AE12IA/fflag-offsets.");
-        return;
+      const res = await fetch("versions.json", { cache: "no-store" });
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data)) applyVersions(data, { selected: selectedVersion });
       }
+    } catch {
+      /* keep builtin */
+    }
 
-      trigger.disabled = false;
-      valueEl.textContent = "Select a version…";
-      renderMenu();
-      setMeta(`${versions.length} versions available`);
-    } catch (err) {
-      valueEl.textContent = "Failed to load versions";
-      setMeta("Could not load versions from GitHub. Try again later.");
-      console.error(err);
+    // 3) Quiet background refresh from GitHub (optional, short timeout)
+    refreshVersionsFromGitHub();
+  }
+
+  async function refreshVersionsFromGitHub() {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 2500);
+    try {
+      const res = await fetch(BRANCHES_URL, { signal: ctrl.signal });
+      if (!res.ok) return;
+      const branches = await res.json();
+      const names = branches.map((b) => b.name).filter((name) => /^version-/i.test(name));
+      if (names.length) applyVersions(names, { selected: selectedVersion });
+    } catch {
+      /* ignore — local list already works */
+    } finally {
+      clearTimeout(timer);
     }
   }
 
@@ -157,7 +203,7 @@
     setMeta(`Loading ${branch}…`);
 
     try {
-      const res = await fetch(RAW(branch), { cache: "no-store" });
+      const res = await fetch(RAW(branch), { cache: "force-cache" });
       if (!res.ok) throw new Error(`offsets.json ${res.status}`);
       const data = await res.json();
       const flagsObj = data.flags || {};
@@ -203,5 +249,5 @@
     searchTimer = setTimeout(() => renderRows(currentFlags, search.value), 120);
   });
 
-  loadVersions();
+  loadVersionsInstant();
 })();
