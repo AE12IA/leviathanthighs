@@ -67,14 +67,37 @@ export default {
         const body = await request.json();
         const username = cleanUser(body.username);
         const password = String(body.password || "");
-        const { users } = await readUsers(env);
-        const found = users.find(
+        const hwid = String(body.hwid || "")
+          .trim()
+          .replace(/[^a-zA-Z0-9_\-]/g, "")
+          .slice(0, 128);
+        if (!hwid) {
+          return json({ ok: false, error: "Missing hardware id" }, 400, cors);
+        }
+
+        const { users, sha } = await readUsers(env);
+        const idx = users.findIndex(
           (u) =>
             String(u.username).toLowerCase() === username.toLowerCase() &&
             String(u.password) === password
         );
-        if (!found) {
+        if (idx < 0) {
           return json({ ok: false, error: "Invalid username or password" }, 401, cors);
+        }
+
+        const found = users[idx];
+        const bound = String(found.hwid || "").trim();
+        if (!bound) {
+          users[idx] = { ...found, hwid };
+          await writeUsers(env, users, sha);
+          return json({ ok: true, username: found.username, bound: true }, 200, cors);
+        }
+        if (bound !== hwid) {
+          return json(
+            { ok: false, error: "This account is locked to another PC" },
+            403,
+            cors
+          );
         }
         return json({ ok: true, username: found.username }, 200, cors);
       }
