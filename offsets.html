@@ -6,11 +6,11 @@
   <title>Offsets — Leviathan</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body class="page">
-  <header class="bar">
+  <header class="bar bar-wide">
     <a class="back" href="index.html">← Leviathan</a>
   </header>
 
@@ -19,33 +19,42 @@
     <p class="lede">Browse FFlag offsets by Roblox client version.</p>
 
     <div class="offsets-controls">
-      <label class="field">
+      <div class="field">
         <span>Version</span>
-        <select id="version-select" disabled>
-          <option value="">Loading versions…</option>
-        </select>
-      </label>
+        <div class="version-picker" id="version-picker">
+          <button type="button" class="version-trigger" id="version-trigger" disabled aria-haspopup="listbox" aria-expanded="false">
+            <span class="version-trigger-text">
+              <span class="version-label">client</span>
+              <span class="version-value" id="version-value">Loading versions…</span>
+            </span>
+            <span class="version-chevron" aria-hidden="true"></span>
+          </button>
+          <div class="version-menu" id="version-menu" role="listbox" hidden></div>
+        </div>
+      </div>
+
       <label class="field field-grow">
         <span>Search</span>
-        <input id="flag-search" type="search" placeholder="Filter flags…" disabled autocomplete="off" />
+        <div class="search-shell">
+          <span class="search-prefix" aria-hidden="true">~/flags</span>
+          <input id="flag-search" type="search" placeholder="grep flag name…" disabled autocomplete="off" />
+        </div>
       </label>
     </div>
 
     <p class="offsets-meta" id="offsets-meta">Pick a version to load offsets.</p>
 
-    <div class="offsets-table-wrap">
-      <table class="offsets-table" aria-label="Flag offsets">
-        <thead>
-          <tr>
-            <th>Flag</th>
-            <th>Offset</th>
-          </tr>
-        </thead>
-        <tbody id="offsets-body">
-          <tr class="empty-row"><td colspan="2">No data yet</td></tr>
-        </tbody>
-      </table>
-    </div>
+    <section class="code-panel" aria-label="Flag offsets">
+      <div class="code-panel-bar">
+        <span class="dot red"></span>
+        <span class="dot amber"></span>
+        <span class="dot green"></span>
+        <span class="code-panel-title" id="code-panel-title">offsets.json</span>
+      </div>
+      <div class="code-panel-body" id="offsets-body">
+        <div class="code-empty">No data yet — select a version</div>
+      </div>
+    </section>
   </main>
 
   <script src="offsets.js"></script>

@@ -4,11 +4,17 @@
   const RAW = (branch) =>
     `https://raw.githubusercontent.com/${REPO}/${encodeURIComponent(branch)}/offsets.json`;
 
-  const select = document.getElementById("version-select");
+  const picker = document.getElementById("version-picker");
+  const trigger = document.getElementById("version-trigger");
+  const valueEl = document.getElementById("version-value");
+  const menu = document.getElementById("version-menu");
   const search = document.getElementById("flag-search");
   const meta = document.getElementById("offsets-meta");
   const body = document.getElementById("offsets-body");
+  const panelTitle = document.getElementById("code-panel-title");
 
+  let versions = [];
+  let selectedVersion = "";
   let currentFlags = [];
   let renderToken = 0;
   const MAX_ROWS = 250;
@@ -17,8 +23,57 @@
     meta.textContent = text;
   }
 
+  function escapeHtml(str) {
+    return String(str)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  function shortVersion(name) {
+    return name.replace(/^version-/i, "");
+  }
+
   function showEmpty(message) {
-    body.innerHTML = `<tr class="empty-row"><td colspan="2">${message}</td></tr>`;
+    body.innerHTML = `<div class="code-empty">${escapeHtml(message)}</div>`;
+  }
+
+  function setOpen(open) {
+    picker.classList.toggle("open", open);
+    trigger.setAttribute("aria-expanded", open ? "true" : "false");
+    menu.hidden = !open;
+  }
+
+  function renderMenu() {
+    if (!versions.length) {
+      menu.innerHTML = `<div class="version-empty">No versions found</div>`;
+      return;
+    }
+
+    menu.innerHTML = versions
+      .map((v, i) => {
+        const active = v === selectedVersion ? " is-active" : "";
+        return `<button type="button" class="version-option${active}" role="option" data-version="${escapeHtml(
+          v
+        )}" data-index="${i}">
+          <span class="vo-tag">v</span>
+          <span class="vo-main">
+            <span class="vo-id">${escapeHtml(shortVersion(v))}</span>
+            <span class="vo-full">${escapeHtml(v)}</span>
+          </span>
+        </button>`;
+      })
+      .join("");
+  }
+
+  function selectVersion(branch, { load = true } = {}) {
+    selectedVersion = branch;
+    valueEl.textContent = branch || "Select a version…";
+    panelTitle.textContent = branch ? `${branch}/offsets.json` : "offsets.json";
+    renderMenu();
+    setOpen(false);
+    if (load && branch) loadVersion(branch);
   }
 
   function renderRows(flags, query) {
@@ -53,24 +108,18 @@
     );
 
     const html = slice
-      .map(
-        ([name, offset]) =>
-          `<tr><td class="flag-name">${escapeHtml(name)}</td><td class="flag-offset">${escapeHtml(
-            String(offset)
-          )}</td></tr>`
-      )
+      .map(([name, offset], i) => {
+        const line = String(i + 1).padStart(3, " ");
+        return `<div class="code-line">
+          <span class="code-ln">${line}</span>
+          <span class="code-key">"${escapeHtml(name)}"</span><span class="code-sep">:</span>
+          <span class="code-val">${escapeHtml(String(offset))}</span><span class="code-comma">,</span>
+        </div>`;
+      })
       .join("");
 
     if (token !== renderToken) return;
-    body.innerHTML = html;
-  }
-
-  function escapeHtml(str) {
-    return str
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;");
+    body.innerHTML = `<div class="code-lines">${html}</div>`;
   }
 
   async function loadVersions() {
@@ -78,24 +127,23 @@
       const res = await fetch(BRANCHES_URL);
       if (!res.ok) throw new Error(`GitHub API ${res.status}`);
       const branches = await res.json();
-      const versions = branches
+      versions = branches
         .map((b) => b.name)
         .filter((name) => /^version-/i.test(name))
         .sort((a, b) => b.localeCompare(a));
 
       if (!versions.length) {
-        select.innerHTML = `<option value="">No version branches found</option>`;
+        valueEl.textContent = "No version branches found";
         setMeta("No version-* branches in AE12IA/fflag-offsets.");
         return;
       }
 
-      select.innerHTML =
-        `<option value="">Select a version…</option>` +
-        versions.map((v) => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join("");
-      select.disabled = false;
+      trigger.disabled = false;
+      valueEl.textContent = "Select a version…";
+      renderMenu();
       setMeta(`${versions.length} versions available`);
     } catch (err) {
-      select.innerHTML = `<option value="">Failed to load versions</option>`;
+      valueEl.textContent = "Failed to load versions";
       setMeta("Could not load versions from GitHub. Try again later.");
       console.error(err);
     }
@@ -130,17 +178,23 @@
     }
   }
 
-  select.addEventListener("change", () => {
-    const branch = select.value;
-    if (!branch) {
-      currentFlags = [];
-      search.disabled = true;
-      search.value = "";
-      showEmpty("No data yet");
-      setMeta("Pick a version to load offsets.");
-      return;
-    }
-    loadVersion(branch);
+  trigger.addEventListener("click", () => {
+    if (trigger.disabled) return;
+    setOpen(menu.hidden);
+  });
+
+  menu.addEventListener("click", (event) => {
+    const option = event.target.closest(".version-option");
+    if (!option) return;
+    selectVersion(option.dataset.version);
+  });
+
+  document.addEventListener("click", (event) => {
+    if (!picker.contains(event.target)) setOpen(false);
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") setOpen(false);
   });
 
   let searchTimer = null;
