@@ -1,11 +1,9 @@
 (() => {
   const REPO = "AE12IA/fflag-offsets";
-  const BRANCHES_URL = `https://api.github.com/repos/${REPO}/branches?per_page=100`;
   const RAW = (branch) =>
     `https://raw.githubusercontent.com/${REPO}/${encodeURIComponent(branch)}/offsets.json`;
 
-  // Instant fallback if versions.json is missing/cached oddly
-  const BUILTIN_VERSIONS = [
+  const FALLBACK = [
     "version-e068ebae24354cbb",
     "version-ddf02245bdbb428c",
     "version-b1da31c4a8514991",
@@ -30,6 +28,7 @@
   const meta = document.getElementById("offsets-meta");
   const body = document.getElementById("offsets-body");
   const panelTitle = document.getElementById("code-panel-title");
+  const versionsData = document.getElementById("versions-data");
 
   let versions = [];
   let selectedVersion = "";
@@ -38,7 +37,7 @@
   const MAX_ROWS = 250;
 
   function setMeta(text) {
-    meta.textContent = text;
+    if (meta) meta.textContent = text;
   }
 
   function escapeHtml(str) {
@@ -54,72 +53,98 @@
   }
 
   function showEmpty(message) {
-    body.innerHTML = `<div class="code-empty">${escapeHtml(message)}</div>`;
+    if (body) body.innerHTML = `<div class="code-empty">${escapeHtml(message)}</div>`;
   }
 
   function setOpen(open) {
+    if (!picker || !trigger || !menu) return;
     picker.classList.toggle("open", open);
     trigger.setAttribute("aria-expanded", open ? "true" : "false");
     menu.hidden = !open;
   }
 
-  function applyVersions(list, { selected } = {}) {
-    const next = [...new Set(list.filter((name) => /^version-/i.test(name)))].sort((a, b) =>
-      b.localeCompare(a)
-    );
+  function readInlineVersions() {
+    try {
+      if (!versionsData) return null;
+      const parsed = JSON.parse(versionsData.textContent);
+      return Array.isArray(parsed) ? parsed : null;
+    } catch {
+      return null;
+    }
+  }
+
+  function applyVersions(list) {
+    const next = [];
+    const seen = Object.create(null);
+    for (let i = 0; i < list.length; i++) {
+      const name = list[i];
+      if (typeof name !== "string") continue;
+      if (!/^version-/i.test(name)) continue;
+      if (seen[name]) continue;
+      seen[name] = true;
+      next.push(name);
+    }
+    next.sort(function (a, b) {
+      return b.localeCompare(a);
+    });
     if (!next.length) return false;
 
     versions = next;
-    trigger.disabled = false;
+    if (trigger) trigger.disabled = false;
     renderMenu();
-
-    if (selected && versions.includes(selected)) {
-      valueEl.textContent = selected;
-    } else if (!selectedVersion) {
-      valueEl.textContent = "Select a version…";
-    }
-
-    setMeta(`${versions.length} versions available`);
+    if (valueEl && !selectedVersion) valueEl.textContent = "Select a version…";
+    setMeta(versions.length + " versions ready");
     return true;
   }
 
   function renderMenu() {
+    if (!menu) return;
     if (!versions.length) {
-      menu.innerHTML = `<div class="version-empty">No versions found</div>`;
+      menu.innerHTML = '<div class="version-empty">No versions found</div>';
       return;
     }
 
-    menu.innerHTML = versions
-      .map((v, i) => {
-        const active = v === selectedVersion ? " is-active" : "";
-        return `<button type="button" class="version-option${active}" role="option" data-version="${escapeHtml(
-          v
-        )}" data-index="${i}">
-          <span class="vo-tag">v</span>
-          <span class="vo-main">
-            <span class="vo-id">${escapeHtml(shortVersion(v))}</span>
-            <span class="vo-full">${escapeHtml(v)}</span>
-          </span>
-        </button>`;
-      })
-      .join("");
+    let html = "";
+    for (let i = 0; i < versions.length; i++) {
+      const v = versions[i];
+      const active = v === selectedVersion ? " is-active" : "";
+      html +=
+        '<button type="button" class="version-option' +
+        active +
+        '" role="option" data-version="' +
+        escapeHtml(v) +
+        '">' +
+        '<span class="vo-tag">v</span>' +
+        '<span class="vo-main">' +
+        '<span class="vo-id">' +
+        escapeHtml(shortVersion(v)) +
+        "</span>" +
+        '<span class="vo-full">' +
+        escapeHtml(v) +
+        "</span>" +
+        "</span>" +
+        "</button>";
+    }
+    menu.innerHTML = html;
   }
 
-  function selectVersion(branch, { load = true } = {}) {
+  function selectVersion(branch) {
     selectedVersion = branch;
-    valueEl.textContent = branch || "Select a version…";
-    panelTitle.textContent = branch ? `${branch}/offsets.json` : "offsets.json";
+    if (valueEl) valueEl.textContent = branch || "Select a version…";
+    if (panelTitle) panelTitle.textContent = branch ? branch + "/offsets.json" : "offsets.json";
     renderMenu();
     setOpen(false);
-    if (load && branch) loadVersion(branch);
+    if (branch) loadVersion(branch);
   }
 
   function renderRows(flags, query) {
     const token = ++renderToken;
     const q = (query || "").trim().toLowerCase();
-    const filtered = q
-      ? flags.filter(([name]) => name.toLowerCase().includes(q))
-      : flags;
+    const filtered = [];
+    for (let i = 0; i < flags.length; i++) {
+      const pair = flags[i];
+      if (!q || pair[0].toLowerCase().indexOf(q) !== -1) filtered.push(pair);
+    }
 
     if (token !== renderToken) return;
 
@@ -127,8 +152,8 @@
       showEmpty(q ? "No flags match your search" : "No flags in this version");
       setMeta(
         q
-          ? `0 / ${flags.length.toLocaleString()} flags match “${query.trim()}”`
-          : `${flags.length.toLocaleString()} flags`
+          ? "0 / " + flags.length.toLocaleString() + ' flags match "' + query.trim() + '"'
+          : flags.length.toLocaleString() + " flags"
       );
       return;
     }
@@ -136,118 +161,111 @@
     const slice = filtered.slice(0, MAX_ROWS);
     const extra =
       filtered.length > MAX_ROWS
-        ? ` · showing first ${MAX_ROWS.toLocaleString()} — refine search for more`
+        ? " · showing first " + MAX_ROWS.toLocaleString() + " — refine search for more"
         : "";
 
     setMeta(
       q
-        ? `${filtered.length.toLocaleString()} / ${flags.length.toLocaleString()} flags match “${query.trim()}”${extra}`
-        : `${flags.length.toLocaleString()} flags${extra}`
+        ? filtered.length.toLocaleString() +
+            " / " +
+            flags.length.toLocaleString() +
+            ' flags match "' +
+            query.trim() +
+            '"' +
+            extra
+        : flags.length.toLocaleString() + " flags" + extra
     );
 
-    const html = slice
-      .map(([name, offset], i) => {
-        const line = String(i + 1).padStart(3, " ");
-        return `<div class="code-line">
-          <span class="code-ln">${line}</span>
-          <span class="code-key">"${escapeHtml(name)}"</span><span class="code-sep">:</span>
-          <span class="code-val">${escapeHtml(String(offset))}</span><span class="code-comma">,</span>
-        </div>`;
-      })
-      .join("");
+    let html = "";
+    for (let i = 0; i < slice.length; i++) {
+      const name = slice[i][0];
+      const offset = String(slice[i][1]);
+      const line = String(i + 1).padStart(3, " ");
+      html +=
+        '<div class="code-line">' +
+        '<span class="code-ln">' +
+        line +
+        "</span>" +
+        '<span class="code-key">"' +
+        escapeHtml(name) +
+        '"</span><span class="code-sep">:</span>' +
+        '<span class="code-val">' +
+        escapeHtml(offset) +
+        '</span><span class="code-comma">,</span>' +
+        "</div>";
+    }
 
     if (token !== renderToken) return;
-    body.innerHTML = `<div class="code-lines">${html}</div>`;
+    if (body) body.innerHTML = '<div class="code-lines">' + html + "</div>";
   }
 
-  async function loadVersionsInstant() {
-    // 1) Built-in list → picker usable immediately
-    applyVersions(BUILTIN_VERSIONS);
-
-    // 2) Same-origin versions.json (fast, no GitHub API)
-    try {
-      const res = await fetch("versions.json", { cache: "no-store" });
-      if (res.ok) {
-        const data = await res.json();
-        if (Array.isArray(data)) applyVersions(data, { selected: selectedVersion });
-      }
-    } catch {
-      /* keep builtin */
-    }
-
-    // 3) Quiet background refresh from GitHub (optional, short timeout)
-    refreshVersionsFromGitHub();
-  }
-
-  async function refreshVersionsFromGitHub() {
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 2500);
-    try {
-      const res = await fetch(BRANCHES_URL, { signal: ctrl.signal });
-      if (!res.ok) return;
-      const branches = await res.json();
-      const names = branches.map((b) => b.name).filter((name) => /^version-/i.test(name));
-      if (names.length) applyVersions(names, { selected: selectedVersion });
-    } catch {
-      /* ignore — local list already works */
-    } finally {
-      clearTimeout(timer);
-    }
-  }
+  // Instant — no network needed for the version list
+  applyVersions(readInlineVersions() || FALLBACK);
 
   async function loadVersion(branch) {
     currentFlags = [];
-    search.value = "";
-    search.disabled = true;
+    if (search) {
+      search.value = "";
+      search.disabled = true;
+    }
     showEmpty("Loading offsets…");
-    setMeta(`Loading ${branch}…`);
+    setMeta("Loading " + branch + "…");
 
     try {
-      const res = await fetch(RAW(branch), { cache: "force-cache" });
-      if (!res.ok) throw new Error(`offsets.json ${res.status}`);
+      const res = await fetch(RAW(branch) + "?t=" + Date.now());
+      if (!res.ok) throw new Error("offsets.json " + res.status);
       const data = await res.json();
       const flagsObj = data.flags || {};
-      currentFlags = Object.entries(flagsObj).sort((a, b) =>
-        a[0].localeCompare(b[0])
-      );
+      const entries = Object.keys(flagsObj).sort();
+      currentFlags = entries.map(function (key) {
+        return [key, flagsObj[key]];
+      });
 
-      const total = data.total_flags ?? currentFlags.length;
-      const rva = data.fflag_list_rva ? ` · list RVA ${data.fflag_list_rva}` : "";
-      setMeta(`${branch} · ${Number(total).toLocaleString()} flags${rva}`);
-      search.disabled = false;
-      search.focus();
+      const total = data.total_flags != null ? data.total_flags : currentFlags.length;
+      const rva = data.fflag_list_rva ? " · list RVA " + data.fflag_list_rva : "";
+      setMeta(branch + " · " + Number(total).toLocaleString() + " flags" + rva);
+      if (search) {
+        search.disabled = false;
+        search.focus();
+      }
       renderRows(currentFlags, "");
     } catch (err) {
       showEmpty("Failed to load offsets for this version");
-      setMeta(`Could not load offsets.json from ${branch}`);
+      setMeta("Could not load offsets.json from " + branch);
       console.error(err);
     }
   }
 
-  trigger.addEventListener("click", () => {
-    if (trigger.disabled) return;
-    setOpen(menu.hidden);
+  if (trigger) {
+    trigger.addEventListener("click", function () {
+      if (trigger.disabled) return;
+      setOpen(menu.hidden);
+    });
+  }
+
+  if (menu) {
+    menu.addEventListener("click", function (event) {
+      const option = event.target.closest(".version-option");
+      if (!option) return;
+      selectVersion(option.getAttribute("data-version"));
+    });
+  }
+
+  document.addEventListener("click", function (event) {
+    if (picker && !picker.contains(event.target)) setOpen(false);
   });
 
-  menu.addEventListener("click", (event) => {
-    const option = event.target.closest(".version-option");
-    if (!option) return;
-    selectVersion(option.dataset.version);
-  });
-
-  document.addEventListener("click", (event) => {
-    if (!picker.contains(event.target)) setOpen(false);
-  });
-
-  document.addEventListener("keydown", (event) => {
+  document.addEventListener("keydown", function (event) {
     if (event.key === "Escape") setOpen(false);
   });
 
   let searchTimer = null;
-  search.addEventListener("input", () => {
-    clearTimeout(searchTimer);
-    searchTimer = setTimeout(() => renderRows(currentFlags, search.value), 120);
-  });
-
-  loadVersionsInstant();
+  if (search) {
+    search.addEventListener("input", function () {
+      clearTimeout(searchTimer);
+      searchTimer = setTimeout(function () {
+        renderRows(currentFlags, search.value);
+      }, 120);
+    });
+  }
 })();
