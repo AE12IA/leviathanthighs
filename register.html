@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Register — Leviathan</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css?v=10" />
+</head>
+<body class="page">
+  <header class="bar">
+    <a class="back" href="index.html">← Leviathan</a>
+  </header>
+
+  <main class="content auth-content">
+    <h1>Create account</h1>
+    <p class="lede">Register here, then log in inside <code>fflag.ahk</code>.</p>
+
+    <form class="auth-form" id="register-form">
+      <label class="field">
+        <span>Username</span>
+        <input id="reg-user" name="username" maxlength="32" autocomplete="username" required pattern="[A-Za-z0-9_.\-]{1,32}" />
+      </label>
+      <label class="field">
+        <span>Password</span>
+        <input id="reg-pass" name="password" type="password" minlength="4" autocomplete="new-password" required />
+      </label>
+      <button class="btn auth-submit" type="submit">Register</button>
+      <p class="auth-msg" id="reg-msg" role="status"></p>
+    </form>
+
+    <p class="auth-note">
+      Accounts are saved to GitHub (<code>auth/users.json</code>).
+      Passwords are stored as hashes — usernames stay visible to the site owner.
+    </p>
+  </main>
+
+  <script src="auth-config.js"></script>
+  <script src="register.js"></script>
+</body>
+</html>

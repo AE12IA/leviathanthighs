@@ -457,6 +457,57 @@ footer {
   }
 }
 
+/* —— Auth / register —— */
+.auth-content {
+  width: min(420px, calc(100% - 2rem));
+}
+
+.auth-form {
+  display: grid;
+  gap: 0.85rem;
+  margin: 0 0 1.25rem;
+}
+
+.auth-form .field input {
+  appearance: none;
+  width: 100%;
+  padding: 0.7rem 0.85rem;
+  border: 1px solid #2a2a2a;
+  border-radius: 8px;
+  background: #111;
+  color: var(--text);
+  font: inherit;
+}
+
+.auth-form .field input:focus {
+  outline: none;
+  border-color: #4a4a4a;
+}
+
+.auth-submit {
+  width: 100%;
+  cursor: pointer;
+  margin-top: 0.25rem;
+}
+
+.auth-msg {
+  min-height: 1.25rem;
+  margin: 0;
+  font-size: 0.88rem;
+}
+
+.auth-note {
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.auth-note code,
+.lede code {
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 0.84em;
+}
+
 /* —— Offsets browser —— */
 .bar-wide {
   width: min(920px, calc(100% - 2rem));
