@@ -1,24 +1,27 @@
 /**
- * Leviathan Auth API — Cloudflare Worker
+ * Leviathan Auth — Cloudflare Worker (plaintext users.json)
  *
- * Setup (about 5 minutes, free):
- * 1. https://dash.cloudflare.com → Workers & Pages → Create Worker
- * 2. Paste this whole file, Deploy
- * 3. Settings → Variables → Add secret GITHUB_TOKEN
- *    (GitHub → Settings → Developer settings → Fine-grained token
- *     Repository: AE12IA/leviathanthighs, Permission: Contents Read/Write)
- * 4. Optional vars: GITHUB_REPO=AE12IA/leviathanthighs  GITHUB_PATH=auth/users.json
- * 5. Copy the worker URL into auth-config.js on the site
+ * CLICK-BY-CLICK SETUP:
+ * 1. Open https://dash.cloudflare.com and sign up / log in (free)
+ * 2. Left sidebar: Workers & Pages → Create → Create Worker
+ * 3. Name it e.g. leviathan-auth → Deploy
+ * 4. Click Edit code → delete the default code → paste THIS WHOLE FILE → Save and Deploy
+ * 5. Back to the Worker → Settings → Variables and Secrets → Add
+ *      Variable name: GITHUB_TOKEN
+ *      Type: Secret
+ *      Value: your GitHub fine-grained token (see below)
+ * 6. Copy your worker URL (https://leviathan-auth.XXXX.workers.dev)
+ * 7. Send that URL to Cursor / put it in auth-config.js as apiUrl
  *
- * Endpoints:
- *   POST /register  { "username", "password" }
- *   POST /login     { "username", "password" }
- *   GET  /users     usernames only (no password hashes)
+ * CREATE GITHUB TOKEN:
+ * GitHub → Settings → Developer settings → Fine-grained personal access tokens → Generate
+ * Repository access: Only AE12IA/leviathanthighs
+ * Permissions → Repository → Contents: Read and write
+ * Generate → copy the token once into the Worker secret (NOT into the website)
  */
 
 const DEFAULT_REPO = "AE12IA/leviathanthighs";
 const DEFAULT_PATH = "auth/users.json";
-const SALT = "leviathan-auth-v1";
 
 export default {
   async fetch(request, env) {
@@ -27,7 +30,6 @@ export default {
       "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
       "Access-Control-Allow-Headers": "Content-Type",
     };
-
     if (request.method === "OPTIONS") {
       return new Response(null, { status: 204, headers: cors });
     }
@@ -36,13 +38,9 @@ export default {
     const path = url.pathname.replace(/\/+$/, "") || "/";
 
     try {
-      if (request.method === "GET" && (path === "/users" || path === "/")) {
+      if (request.method === "GET" && (path === "/" || path === "/users")) {
         const { users } = await readUsers(env);
-        const publicList = users.map((u) => ({
-          username: u.username,
-          created: u.created || null,
-        }));
-        return json(publicList, 200, cors);
+        return json(users, 200, cors);
       }
 
       if (request.method === "POST" && path === "/register") {
@@ -52,16 +50,13 @@ export default {
         if (!username || password.length < 4) {
           return json({ ok: false, error: "Username required; password min 4 chars" }, 400, cors);
         }
-
         const { users, sha } = await readUsers(env);
-        if (users.some((u) => u.username.toLowerCase() === username.toLowerCase())) {
+        if (users.some((u) => String(u.username).toLowerCase() === username.toLowerCase())) {
           return json({ ok: false, error: "Username already taken" }, 409, cors);
         }
-
-        const pass_hash = await sha256Hex(username.toLowerCase() + "|" + password + "|" + SALT);
         users.push({
           username,
-          pass_hash,
+          password,
           created: new Date().toISOString(),
         });
         await writeUsers(env, users, sha);
@@ -73,9 +68,10 @@ export default {
         const username = cleanUser(body.username);
         const password = String(body.password || "");
         const { users } = await readUsers(env);
-        const pass_hash = await sha256Hex(username.toLowerCase() + "|" + password + "|" + SALT);
         const found = users.find(
-          (u) => u.username.toLowerCase() === username.toLowerCase() && u.pass_hash === pass_hash
+          (u) =>
+            String(u.username).toLowerCase() === username.toLowerCase() &&
+            String(u.password) === password
         );
         if (!found) {
           return json({ ok: false, error: "Invalid username or password" }, 401, cors);
@@ -104,15 +100,9 @@ function json(data, status, cors) {
   });
 }
 
-async function sha256Hex(text) {
-  const data = new TextEncoder().encode(text);
-  const hash = await crypto.subtle.digest("SHA-256", data);
-  return [...new Uint8Array(hash)].map((b) => b.toString(16).padStart(2, "0")).join("");
-}
-
 async function readUsers(env) {
   const token = env.GITHUB_TOKEN;
-  if (!token) throw new Error("GITHUB_TOKEN secret not set on Worker");
+  if (!token) throw new Error("GITHUB_TOKEN secret missing on Worker");
   const repo = env.GITHUB_REPO || DEFAULT_REPO;
   const path = env.GITHUB_PATH || DEFAULT_PATH;
   const res = await fetch(`https://api.github.com/repos/${repo}/contents/${path}`, {
@@ -122,12 +112,8 @@ async function readUsers(env) {
       "User-Agent": "leviathan-auth",
     },
   });
-  if (res.status === 404) {
-    return { users: [], sha: null };
-  }
-  if (!res.ok) {
-    throw new Error("GitHub read failed: " + res.status);
-  }
+  if (res.status === 404) return { users: [], sha: null };
+  if (!res.ok) throw new Error("GitHub read failed: " + res.status);
   const data = await res.json();
   const text = atob(data.content.replace(/\n/g, ""));
   let users = [];
@@ -151,7 +137,6 @@ async function writeUsers(env, users, sha) {
     branch: "main",
   };
   if (sha) body.sha = sha;
-
   const res = await fetch(`https://api.github.com/repos/${repo}/contents/${path}`, {
     method: "PUT",
     headers: {
@@ -163,7 +148,6 @@ async function writeUsers(env, users, sha) {
     body: JSON.stringify(body),
   });
   if (!res.ok) {
-    const errText = await res.text();
-    throw new Error("GitHub write failed: " + res.status + " " + errText);
+    throw new Error("GitHub write failed: " + res.status + " " + (await res.text()));
   }
 }
