@@ -1,17 +1,7 @@
 [
   {
-    "username": "test",
-    "password": "test",
-    "created": "2026-07-16T22:00:00.000Z"
-  },
-  {
     "username": "ae12ia",
-    "password": "abc",
-    "created": "2026-07-16T23:12:32.207Z"
-  },
-  {
-    "username": "ae12iaa",
-    "password": "aaaa",
+    "password": "abcd",
     "created": "2026-07-16T23:30:51.161Z",
     "hwid": "b650c50f61b4872c7c06b02670092b969fae7ee9a5c5b19f3793f753e5cad8cb"
   }
