@@ -538,10 +538,10 @@ HasValidSession() {
         data := JsonParseObj(FileRead(AuthSessionFile, "UTF-8"))
         if (!data.Has("username") || !data.Has("until"))
             return false
-        until := data["until"]
-        if (Type(until) = "String")
-            until := DateParseUnix(until)
-        if (until > UnixNow() && data["username"] != "")
+        expiresAt := data["until"]
+        if (Type(expiresAt) = "String")
+            expiresAt := DateParseUnix(expiresAt)
+        if (expiresAt > UnixNow() && data["username"] != "")
             return true
     } catch {
     }
@@ -550,10 +550,10 @@ HasValidSession() {
 
 SaveSession(username) {
     global AuthSessionFile
-    until := UnixNow() + (30 * 24 * 3600)
+    expiresAt := UnixNow() + (30 * 24 * 3600)
     text := '{`n'
         . '  "username": "' EscapeJson(username) '",`n'
-        . '  "until": ' until '`n'
+        . '  "until": ' expiresAt '`n'
         . '}`n'
     try FileDelete(AuthSessionFile)
     FileAppend(text, AuthSessionFile, "UTF-8")
@@ -618,7 +618,7 @@ ShowLoginDialog() {
 }
 
 VerifyLogin(username, password) {
-    global AUTH_API_URL, AUTH_USERS_URL, AUTH_SALT
+    global AUTH_API_URL, AUTH_USERS_URL
     if (AUTH_API_URL != "") {
         body := '{"username":"' EscapeJson(username) '","password":"' EscapeJson(password) '"}'
         resp := HttpRequest("POST", RTrim(AUTH_API_URL, "/") "/login", body, "application/json")
@@ -629,11 +629,10 @@ VerifyLogin(username, password) {
 
     raw := HttpRequest("GET", AUTH_USERS_URL "?t=" UnixNow(), "", "")
     users := JsonParseArr(raw)
-    want := Sha256Hex(StrLower(username) "|" password "|" AUTH_SALT)
     for u in users {
         uname := u.Has("username") ? String(u["username"]) : ""
-        ph := u.Has("pass_hash") ? String(u["pass_hash"]) : ""
-        if (StrLower(uname) = StrLower(username) && ph = want)
+        pass := u.Has("password") ? String(u["password"]) : ""
+        if (StrLower(uname) = StrLower(username) && pass = password)
             return true
     }
     return false
