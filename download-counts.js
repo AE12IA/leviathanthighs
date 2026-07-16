@@ -84,7 +84,7 @@
 
         startDownload(href, filename);
 
-        // Only count once per browser/profile on this device
+        // Only count once per PC (browser storage)
         if (alreadyCounted(key)) return;
 
         const next = await hitCount(key);
