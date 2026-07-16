@@ -1,0 +1,3 @@
+# Placeholder Offsets.txt
+# Replace with your real dump
+ClientVersion=version-pending
