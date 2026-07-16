@@ -16,13 +16,23 @@
 
   <main class="content">
     <h1>Downloads</h1>
-    <p class="lede">Grab tools and dumps. Replace placeholders with your real files anytime.</p>
+    <p class="lede">Grab tools and dumps. Download counts update when someone clicks a tool.</p>
 
     <section>
       <h2>Tools</h2>
       <ul class="links">
-        <li><a href="downloads/tools/fflag.ahk" download>fflag.ahk</a></li>
-        <li><a href="downloads/tools/hub.ahk" download>hub.ahk</a></li>
+        <li>
+          <a class="dl tracked" href="downloads/tools/fflag.ahk" data-counter="fflag-ahk" download="fflag.ahk">
+            <span class="dl-name">fflag.ahk</span>
+            <span class="dl-meta"><span class="dl-count" data-count-for="fflag-ahk">…</span> downloads</span>
+          </a>
+        </li>
+        <li>
+          <a class="dl tracked" href="downloads/tools/hub.ahk" data-counter="hub-ahk" download="hub.ahk">
+            <span class="dl-name">hub.ahk</span>
+            <span class="dl-meta"><span class="dl-count" data-count-for="hub-ahk">…</span> downloads</span>
+          </a>
+        </li>
       </ul>
     </section>
 
@@ -56,5 +66,7 @@
       </ul>
     </section>
   </main>
+
+  <script src="download-counts.js"></script>
 </body>
 </html>

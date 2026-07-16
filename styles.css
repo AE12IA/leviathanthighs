@@ -166,6 +166,28 @@ footer {
   transition: border-color 0.15s ease, background 0.15s ease;
 }
 
+.links a.dl {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.dl-name {
+  font-weight: 500;
+}
+
+.dl-meta {
+  color: var(--muted);
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
+.dl-count {
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
 .links a:hover {
   border-color: #fff;
   background: #111;
