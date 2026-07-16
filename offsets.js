@@ -1,23 +1,27 @@
 (() => {
   const REPO = "AE12IA/fflag-offsets";
-  const RAW = (branch) =>
-    `https://raw.githubusercontent.com/${REPO}/${encodeURIComponent(branch)}/offsets.json`;
+  const HPP = (branch) =>
+    "https://raw.githubusercontent.com/" +
+    REPO +
+    "/" +
+    encodeURIComponent(branch) +
+    "/offsets.hpp";
 
   const FALLBACK = [
-    "version-e068ebae24354cbb",
-    "version-ddf02245bdbb428c",
-    "version-b1da31c4a8514991",
-    "version-ad5d3e2906444472",
-    "version-933201e2e36849e8",
-    "version-90f2fddd3b244ff6",
-    "version-8884371d30284041",
-    "version-76173e47a79145c7",
-    "version-5cf2272675e145f5",
-    "version-4b6315bf1f0a4dbb",
-    "version-460909c4fe904aae",
-    "version-36a2600cebf1487d",
-    "version-2b1721d47abf49aa",
-    "version-1a951716f19e4638",
+    { version: "version-933201e2e36849e8", date: "2026-07-16T20:48:09Z" },
+    { version: "version-ddf02245bdbb428c", date: "2026-07-15T17:14:31Z" },
+    { version: "version-36a2600cebf1487d", date: "2026-07-09T17:23:37Z" },
+    { version: "version-90f2fddd3b244ff6", date: "2026-07-07T18:39:10Z" },
+    { version: "version-5cf2272675e145f5", date: "2026-07-02T12:58:23Z" },
+    { version: "version-1a951716f19e4638", date: "2026-06-24T16:25:42Z" },
+    { version: "version-8884371d30284041", date: "2026-06-20T21:11:10Z" },
+    { version: "version-b1da31c4a8514991", date: "2026-06-20T10:26:22Z" },
+    { version: "version-e068ebae24354cbb", date: "2026-06-13T14:41:33Z" },
+    { version: "version-76173e47a79145c7", date: "2026-06-13T14:31:45Z" },
+    { version: "version-ad5d3e2906444472", date: "2026-06-04T18:19:22Z" },
+    { version: "version-460909c4fe904aae", date: "2026-05-27T19:26:21Z" },
+    { version: "version-4b6315bf1f0a4dbb", date: "2026-05-25T21:14:41Z" },
+    { version: "version-2b1721d47abf49aa", date: "2026-05-25T21:13:46Z" },
   ];
 
   const picker = document.getElementById("version-picker");
@@ -28,13 +32,14 @@
   const meta = document.getElementById("offsets-meta");
   const body = document.getElementById("offsets-body");
   const panelTitle = document.getElementById("code-panel-title");
+  const downloadLink = document.getElementById("hpp-download");
   const versionsData = document.getElementById("versions-data");
 
   let versions = [];
   let selectedVersion = "";
-  let currentFlags = [];
+  let hppText = "";
+  let hppLines = [];
   let renderToken = 0;
-  const MAX_ROWS = 250;
 
   function setMeta(text) {
     if (meta) meta.textContent = text;
@@ -49,11 +54,42 @@
   }
 
   function shortVersion(name) {
-    return name.replace(/^version-/i, "");
+    return String(name).replace(/^version-/i, "");
+  }
+
+  function formatDate(iso) {
+    if (!iso) return "unknown date";
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return iso;
+    return d.toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    });
+  }
+
+  function normalizeList(raw) {
+    const out = [];
+    if (!Array.isArray(raw)) return out;
+    for (let i = 0; i < raw.length; i++) {
+      const item = raw[i];
+      if (typeof item === "string") {
+        out.push({ version: item, date: "" });
+      } else if (item && typeof item.version === "string") {
+        out.push({ version: item.version, date: item.date || "" });
+      }
+    }
+    out.sort(function (a, b) {
+      const da = a.date ? Date.parse(a.date) : 0;
+      const db = b.date ? Date.parse(b.date) : 0;
+      if (db !== da) return db - da;
+      return b.version.localeCompare(a.version);
+    });
+    return out;
   }
 
   function showEmpty(message) {
-    if (body) body.innerHTML = `<div class="code-empty">${escapeHtml(message)}</div>`;
+    if (body) body.innerHTML = '<div class="code-empty">' + escapeHtml(message) + "</div>";
   }
 
   function setOpen(open) {
@@ -66,26 +102,15 @@
   function readInlineVersions() {
     try {
       if (!versionsData) return null;
-      const parsed = JSON.parse(versionsData.textContent);
-      return Array.isArray(parsed) ? parsed : null;
+      return JSON.parse(versionsData.textContent);
     } catch {
       return null;
     }
   }
 
   function applyVersions(list) {
-    const next = [];
-    const seen = Object.create(null);
-    for (let i = 0; i < list.length; i++) {
-      const name = list[i];
-      if (typeof name !== "string") continue;
-      if (!/^version-/i.test(name)) continue;
-      if (seen[name]) continue;
-      seen[name] = true;
-      next.push(name);
-    }
-    next.sort(function (a, b) {
-      return b.localeCompare(a);
+    const next = normalizeList(list).filter(function (item) {
+      return /^version-/i.test(item.version);
     });
     if (!next.length) return false;
 
@@ -106,21 +131,24 @@
 
     let html = "";
     for (let i = 0; i < versions.length; i++) {
-      const v = versions[i];
-      const active = v === selectedVersion ? " is-active" : "";
+      const item = versions[i];
+      const active = item.version === selectedVersion ? " is-active" : "";
       html +=
         '<button type="button" class="version-option' +
         active +
         '" role="option" data-version="' +
-        escapeHtml(v) +
+        escapeHtml(item.version) +
         '">' +
         '<span class="vo-tag">v</span>' +
         '<span class="vo-main">' +
         '<span class="vo-id">' +
-        escapeHtml(shortVersion(v)) +
+        escapeHtml(shortVersion(item.version)) +
         "</span>" +
         '<span class="vo-full">' +
-        escapeHtml(v) +
+        escapeHtml(item.version) +
+        "</span>" +
+        '<span class="vo-date">Published ' +
+        escapeHtml(formatDate(item.date)) +
         "</span>" +
         "</span>" +
         "</button>";
@@ -128,113 +156,120 @@
     menu.innerHTML = html;
   }
 
+  function currentDateLabel() {
+    for (let i = 0; i < versions.length; i++) {
+      if (versions[i].version === selectedVersion) {
+        return formatDate(versions[i].date);
+      }
+    }
+    return "";
+  }
+
   function selectVersion(branch) {
     selectedVersion = branch;
     if (valueEl) valueEl.textContent = branch || "Select a version…";
-    if (panelTitle) panelTitle.textContent = branch ? branch + "/offsets.json" : "offsets.json";
+    if (panelTitle) panelTitle.textContent = branch ? branch + "/offsets.hpp" : "offsets.hpp";
     renderMenu();
     setOpen(false);
     if (branch) loadVersion(branch);
   }
 
-  function renderRows(flags, query) {
+  function renderHpp(query) {
     const token = ++renderToken;
-    const q = (query || "").trim().toLowerCase();
-    const filtered = [];
-    for (let i = 0; i < flags.length; i++) {
-      const pair = flags[i];
-      if (!q || pair[0].toLowerCase().indexOf(q) !== -1) filtered.push(pair);
+    if (!hppText) {
+      showEmpty("No data yet — select a version");
+      return;
     }
 
-    if (token !== renderToken) return;
-
-    if (!filtered.length) {
-      showEmpty(q ? "No flags match your search" : "No flags in this version");
+    const q = (query || "").trim().toLowerCase();
+    if (!q) {
+      if (token !== renderToken) return;
+      if (body) {
+        body.innerHTML = '<pre class="hpp-raw"></pre>';
+        body.querySelector(".hpp-raw").textContent = hppText;
+      }
+      const published = currentDateLabel();
       setMeta(
-        q
-          ? "0 / " + flags.length.toLocaleString() + ' flags match "' + query.trim() + '"'
-          : flags.length.toLocaleString() + " flags"
+        selectedVersion +
+          " · offsets.hpp · " +
+          hppLines.length.toLocaleString() +
+          " lines" +
+          (published ? " · published " + published : "")
       );
       return;
     }
 
-    const slice = filtered.slice(0, MAX_ROWS);
-    const extra =
-      filtered.length > MAX_ROWS
-        ? " · showing first " + MAX_ROWS.toLocaleString() + " — refine search for more"
-        : "";
-
-    setMeta(
-      q
-        ? filtered.length.toLocaleString() +
-            " / " +
-            flags.length.toLocaleString() +
-            ' flags match "' +
-            query.trim() +
-            '"' +
-            extra
-        : flags.length.toLocaleString() + " flags" + extra
-    );
-
-    let html = "";
-    for (let i = 0; i < slice.length; i++) {
-      const name = slice[i][0];
-      const offset = String(slice[i][1]);
-      const line = String(i + 1).padStart(3, " ");
-      html +=
-        '<div class="code-line">' +
-        '<span class="code-ln">' +
-        line +
-        "</span>" +
-        '<span class="code-key">"' +
-        escapeHtml(name) +
-        '"</span><span class="code-sep">:</span>' +
-        '<span class="code-val">' +
-        escapeHtml(offset) +
-        '</span><span class="code-comma">,</span>' +
-        "</div>";
+    const matched = [];
+    for (let i = 0; i < hppLines.length; i++) {
+      const line = hppLines[i];
+      const t = line.trim();
+      const isHeader =
+        i < 12 ||
+        t.indexOf("//") === 0 ||
+        t.charAt(0) === "#" ||
+        t.indexOf("namespace ") === 0 ||
+        t === "{" ||
+        t.indexOf("}") === 0;
+      if (isHeader || line.toLowerCase().indexOf(q) !== -1) matched.push(line);
     }
 
     if (token !== renderToken) return;
-    if (body) body.innerHTML = '<div class="code-lines">' + html + "</div>";
+    if (!matched.length) {
+      showEmpty('No lines match "' + query.trim() + '"');
+      setMeta("0 matches in " + selectedVersion);
+      return;
+    }
+
+    const filteredText = matched.join("\n");
+    if (body) {
+      body.innerHTML = '<pre class="hpp-raw"></pre>';
+      body.querySelector(".hpp-raw").textContent = filteredText;
+    }
+    setMeta(
+      matched.length.toLocaleString() +
+        " lines shown · filter “" +
+        query.trim() +
+        "” · clear search for full file"
+    );
   }
 
-  // Instant — no network needed for the version list
-  applyVersions(readInlineVersions() || FALLBACK);
-
   async function loadVersion(branch) {
-    currentFlags = [];
+    hppText = "";
+    hppLines = [];
     if (search) {
       search.value = "";
       search.disabled = true;
     }
-    showEmpty("Loading offsets…");
+    if (downloadLink) downloadLink.hidden = true;
+    showEmpty("Loading offsets.hpp…");
     setMeta("Loading " + branch + "…");
 
     try {
-      const res = await fetch(RAW(branch) + "?t=" + Date.now());
-      if (!res.ok) throw new Error("offsets.json " + res.status);
-      const data = await res.json();
-      const flagsObj = data.flags || {};
-      const entries = Object.keys(flagsObj).sort();
-      currentFlags = entries.map(function (key) {
-        return [key, flagsObj[key]];
-      });
+      const res = await fetch(HPP(branch) + "?t=" + Date.now());
+      if (!res.ok) throw new Error("offsets.hpp " + res.status);
+      const text = await res.text();
+      hppText = text;
+      hppLines = text.split(/\r?\n/);
 
-      const total = data.total_flags != null ? data.total_flags : currentFlags.length;
-      const rva = data.fflag_list_rva ? " · list RVA " + data.fflag_list_rva : "";
-      setMeta(branch + " · " + Number(total).toLocaleString() + " flags" + rva);
+      if (downloadLink) {
+        downloadLink.href = HPP(branch);
+        downloadLink.download = branch + "-offsets.hpp";
+        downloadLink.hidden = false;
+      }
+
       if (search) {
         search.disabled = false;
         search.focus();
       }
-      renderRows(currentFlags, "");
+      renderHpp("");
     } catch (err) {
-      showEmpty("Failed to load offsets for this version");
-      setMeta("Could not load offsets.json from " + branch);
+      showEmpty("Failed to load offsets.hpp for this version");
+      setMeta("Could not load offsets.hpp from " + branch);
       console.error(err);
     }
   }
+
+  applyVersions(readInlineVersions() || FALLBACK);
 
   if (trigger) {
     trigger.addEventListener("click", function () {
@@ -264,7 +299,7 @@
     search.addEventListener("input", function () {
       clearTimeout(searchTimer);
       searchTimer = setTimeout(function () {
-        renderRows(currentFlags, search.value);
+        renderHpp(search.value);
       }, 120);
     });
   }
