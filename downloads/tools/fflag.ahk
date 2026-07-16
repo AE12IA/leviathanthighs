@@ -48,6 +48,14 @@ LogLines       := []
 PrefixMap := Map()
 global IsGuiHidden := false
 
+; —— Auth (Leviathan) ——
+AUTH_USERS_URL := "https://raw.githubusercontent.com/AE12IA/leviathanthighs/main/auth/users.json"
+AUTH_API_URL   := ""  ; optional Cloudflare Worker base URL, e.g. https://xxx.workers.dev
+AUTH_SALT      := "leviathan-auth-v1"
+AuthSessionFile := AppDir "\auth_session.json"
+
+RequireLogin()
+
 
 WIN_W  := 1080
 WIN_H  := 680
@@ -508,6 +516,301 @@ SaveBtn := MyGui.Add("Button", opt, "*  Save Flags")
 SaveBtn.OnEvent("Click", (*) => (SaveUserFlags(), SetStatus("Flags saved!", "0x4CAF50"), SetTimer(() => SetStatus("Ready"), -2000)))
 
 MyGui.Show("w" WIN_W " h" WIN_H)
+
+
+; ===================== AUTH / LOGIN =====================
+RequireLogin() {
+    global AuthSessionFile
+    if (HasValidSession())
+        return
+
+    result := ShowLoginDialog()
+    if (result = "ok")
+        return
+    ExitApp()
+}
+
+HasValidSession() {
+    global AuthSessionFile
+    if (!FileExist(AuthSessionFile))
+        return false
+    try {
+        data := JsonParseObj(FileRead(AuthSessionFile, "UTF-8"))
+        if (!data.Has("username") || !data.Has("until"))
+            return false
+        until := data["until"]
+        if (Type(until) = "String")
+            until := DateParseUnix(until)
+        if (until > UnixNow() && data["username"] != "")
+            return true
+    } catch {
+    }
+    return false
+}
+
+SaveSession(username) {
+    global AuthSessionFile
+    until := UnixNow() + (30 * 24 * 3600)
+    text := '{`n'
+        . '  "username": "' EscapeJson(username) '",`n'
+        . '  "until": ' until '`n'
+        . '}`n'
+    try FileDelete(AuthSessionFile)
+    FileAppend(text, AuthSessionFile, "UTF-8")
+}
+
+ShowLoginDialog() {
+    global AUTH_USERS_URL, AUTH_API_URL
+    L := Gui("-Caption +Border +AlwaysOnTop", "Leviathan Login")
+    L.BackColor := "0x0A0A0B"
+    L.SetFont("s16 Bold cWhite", "Segoe UI")
+    L.Add("Text", "x24 y22 w320 h28 BackgroundTrans", "FFlag Login")
+    L.SetFont("s9 c0x8A8A8A", "Segoe UI")
+    L.Add("Text", "x24 y54 w320 h36 BackgroundTrans", "Use the account from the Leviathan Register page.")
+
+    L.SetFont("s9 c0x8A8A8A", "Segoe UI")
+    L.Add("Text", "x24 y104 w320 h18 BackgroundTrans", "Username")
+    L.SetFont("s10 cWhite", "Segoe UI")
+    userEdit := L.Add("Edit", "x24 y124 w320 h28 -Theme Background0x13131A")
+
+    L.SetFont("s9 c0x8A8A8A", "Segoe UI")
+    L.Add("Text", "x24 y166 w320 h18 BackgroundTrans", "Password")
+    L.SetFont("s10 cWhite", "Segoe UI")
+    passEdit := L.Add("Edit", "x24 y186 w320 h28 -Theme Password Background0x13131A")
+
+    L.SetFont("s9 c0xF87171", "Segoe UI")
+    errTxt := L.Add("Text", "x24 y228 w320 h36 BackgroundTrans", "")
+
+    L.SetFont("s10 Bold cWhite", "Segoe UI")
+    loginBtn := L.Add("Button", "x24 y274 w154 h34 -Theme", "Login")
+    cancelBtn := L.Add("Button", "x190 y274 w154 h34 -Theme", "Exit")
+
+    result := ""
+    doLogin(*) {
+        u := Trim(userEdit.Value)
+        p := passEdit.Value
+        if (u = "" || p = "") {
+            errTxt.Value := "Enter username and password."
+            return
+        }
+        errTxt.Value := "Checking…"
+        ok := false
+        try ok := VerifyLogin(u, p)
+        catch as e {
+            errTxt.Value := "Login error: " e.Message
+            return
+        }
+        if (!ok) {
+            errTxt.Value := "Invalid username or password."
+            return
+        }
+        SaveSession(u)
+        result := "ok"
+        L.Destroy()
+    }
+    loginBtn.OnEvent("Click", doLogin)
+    cancelBtn.OnEvent("Click", (*) => (result := "cancel", L.Destroy()))
+    L.OnEvent("Close", (*) => (result := "cancel", L.Destroy()))
+    passEdit.OnEvent("Change", (*) => "")
+    L.Show("w368 h330")
+    WinWaitClose(L)
+    return result
+}
+
+VerifyLogin(username, password) {
+    global AUTH_API_URL, AUTH_USERS_URL, AUTH_SALT
+    if (AUTH_API_URL != "") {
+        body := '{"username":"' EscapeJson(username) '","password":"' EscapeJson(password) '"}'
+        resp := HttpRequest("POST", RTrim(AUTH_API_URL, "/") "/login", body, "application/json")
+        if (InStr(resp, '"ok":true') || InStr(resp, '"ok": true'))
+            return true
+        return false
+    }
+
+    raw := HttpRequest("GET", AUTH_USERS_URL "?t=" UnixNow(), "", "")
+    users := JsonParseArr(raw)
+    want := Sha256Hex(StrLower(username) "|" password "|" AUTH_SALT)
+    for u in users {
+        uname := u.Has("username") ? String(u["username"]) : ""
+        ph := u.Has("pass_hash") ? String(u["pass_hash"]) : ""
+        if (StrLower(uname) = StrLower(username) && ph = want)
+            return true
+    }
+    return false
+}
+
+HttpRequest(method, url, body := "", contentType := "") {
+    http := ComObject("WinHttp.WinHttpRequest.5.1")
+    http.Open(method, url, false)
+    http.SetTimeouts(5000, 5000, 15000, 15000)
+    if (contentType != "")
+        http.SetRequestHeader("Content-Type", contentType)
+    http.SetRequestHeader("User-Agent", "LeviathanFFlag/1.0")
+    if (body != "")
+        http.Send(body)
+    else
+        http.Send()
+    return http.ResponseText
+}
+
+Sha256Hex(text) {
+    inFile := A_Temp "\leviathan_auth_in.txt"
+    outFile := A_Temp "\leviathan_auth_out.txt"
+    try FileDelete(inFile)
+    try FileDelete(outFile)
+    f := FileOpen(inFile, "w", "UTF-8-RAW")
+    f.Write(text)
+    f.Close()
+    ps :=
+    (
+        "$in = '" inFile "'; $out = '" outFile "';
+        $bytes = [IO.File]::ReadAllBytes($in);
+        $hash = [Security.Cryptography.SHA256]::Create().ComputeHash($bytes);
+        $hex = ([BitConverter]::ToString($hash)).Replace('-','').ToLower();
+        [IO.File]::WriteAllText($out, $hex);
+    )
+    RunWait('powershell -NoProfile -ExecutionPolicy Bypass -Command ' Chr(34) ps Chr(34), , "Hide")
+    if (!FileExist(outFile))
+        throw Error("Hash failed")
+    return Trim(FileRead(outFile, "UTF-8"))
+}
+
+EscapeJson(str) {
+    s := String(str)
+    s := StrReplace(s, "\", "\\")
+    s := StrReplace(s, '"', '\"')
+    s := StrReplace(s, "`n", "\n")
+    s := StrReplace(s, "`r", "\r")
+    s := StrReplace(s, "`t", "\t")
+    return s
+}
+
+UnixNow() {
+    return DateDiff(A_NowUTC, "19700101000000", "Seconds")
+}
+
+DateParseUnix(val) {
+    if (Type(val) = "Integer" || Type(val) = "Float")
+        return Integer(val)
+    return Integer(val)
+}
+
+JsonParseArr(text) {
+    text := Trim(text)
+    if (SubStr(text, 1, 1) != "[")
+        throw Error("users.json is not an array")
+    ; lightweight array-of-objects parser for our auth file shape
+    users := []
+    pos := 2
+    len := StrLen(text)
+    while (pos <= len) {
+        while (pos <= len && InStr(" `t`r`n,", SubStr(text, pos, 1)))
+            pos += 1
+        if (pos > len || SubStr(text, pos, 1) = "]")
+            break
+        if (SubStr(text, pos, 1) != "{")
+            throw Error("Unexpected users.json format")
+        obj := Map()
+        pos += 1
+        while (pos <= len) {
+            while (pos <= len && InStr(" `t`r`n,", SubStr(text, pos, 1)))
+                pos += 1
+            if (SubStr(text, pos, 1) = "}") {
+                pos += 1
+                break
+            }
+            if (SubStr(text, pos, 1) != '"')
+                throw Error("Expected key in users.json")
+            key := JsonReadString(text, &pos)
+            while (pos <= len && InStr(" `t`r`n", SubStr(text, pos, 1)))
+                pos += 1
+            if (SubStr(text, pos, 1) != ":")
+                throw Error("Expected : in users.json")
+            pos += 1
+            while (pos <= len && InStr(" `t`r`n", SubStr(text, pos, 1)))
+                pos += 1
+            if (SubStr(text, pos, 1) = '"') {
+                obj[key] := JsonReadString(text, &pos)
+            } else {
+                start := pos
+                while (pos <= len && !InStr(",}", SubStr(text, pos, 1)))
+                    pos += 1
+                obj[key] := Trim(SubStr(text, start, pos - start))
+            }
+        }
+        users.Push(obj)
+    }
+    return users
+}
+
+JsonParseObj(text) {
+    text := Trim(text)
+    if (SubStr(text, 1, 1) != "{")
+        throw Error("Not an object")
+    obj := Map()
+    pos := 2
+    len := StrLen(text)
+    while (pos <= len) {
+        while (pos <= len && InStr(" `t`r`n,", SubStr(text, pos, 1)))
+            pos += 1
+        if (SubStr(text, pos, 1) = "}")
+            break
+        if (SubStr(text, pos, 1) != '"')
+            throw Error("Expected key")
+        key := JsonReadString(text, &pos)
+        while (pos <= len && InStr(" `t`r`n", SubStr(text, pos, 1)))
+            pos += 1
+        if (SubStr(text, pos, 1) != ":")
+            throw Error("Expected :")
+        pos += 1
+        while (pos <= len && InStr(" `t`r`n", SubStr(text, pos, 1)))
+            pos += 1
+        if (SubStr(text, pos, 1) = '"') {
+            obj[key] := JsonReadString(text, &pos)
+        } else {
+            start := pos
+            while (pos <= len && !InStr(",}", SubStr(text, pos, 1)))
+                pos += 1
+            raw := Trim(SubStr(text, start, pos - start))
+            obj[key] := IsNumber(raw) ? Number(raw) : raw
+        }
+    }
+    return obj
+}
+
+JsonReadString(text, &pos) {
+    ; pos at opening quote
+    pos += 1
+    out := ""
+    len := StrLen(text)
+    while (pos <= len) {
+        ch := SubStr(text, pos, 1)
+        if (ch = '"') {
+            pos += 1
+            return out
+        }
+        if (ch = "\" && pos < len) {
+            n := SubStr(text, pos + 1, 1)
+            if (n = '"')
+                out .= '"'
+            else if (n = "\")
+                out .= "\"
+            else if (n = "n")
+                out .= "`n"
+            else if (n = "r")
+                out .= "`r"
+            else if (n = "t")
+                out .= "`t"
+            else
+                out .= n
+            pos += 2
+            continue
+        }
+        out .= ch
+        pos += 1
+    }
+    throw Error("Unterminated string")
+}
 
 
 SwitchView(view) {
