@@ -2,7 +2,6 @@
   const form = document.getElementById("register-form");
   const msg = document.getElementById("reg-msg");
   const cfg = window.LEVIATHAN_AUTH || {};
-  const SALT = "leviathan-auth-v1";
   const REPO = "AE12IA/leviathanthighs";
   const PATH = "auth/users.json";
 
@@ -11,28 +10,10 @@
     msg.style.color = ok ? "#8fd67c" : "#f87171";
   }
 
-  async function sha256Hex(text) {
-    const data = new TextEncoder().encode(text);
-    const hash = await crypto.subtle.digest("SHA-256", data);
-    return [...new Uint8Array(hash)].map((b) => b.toString(16).padStart(2, "0")).join("");
-  }
-
-  async function registerViaWorker(username, password) {
-    const res = await fetch(String(cfg.apiUrl).replace(/\/+$/, "") + "/register", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username, password }),
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok || !data.ok) throw new Error(data.error || "Registration failed (" + res.status + ")");
-    return data.username;
-  }
-
   async function registerViaGitHubToken(username, password) {
     const token = cfg.githubToken;
-    if (!token) throw new Error("No auth API / token configured");
+    if (!token) throw new Error("No githubToken in auth-config.js");
 
-    const pass_hash = await sha256Hex(username.toLowerCase() + "|" + password + "|" + SALT);
     const headers = {
       Authorization: "Bearer " + token,
       Accept: "application/vnd.github+json",
@@ -56,13 +37,9 @@
       throw new Error("Username already taken");
     }
 
-    users.push({ username, pass_hash, created: new Date().toISOString() });
+    users.push({ username, password, created: new Date().toISOString() });
     const content = btoa(unescape(encodeURIComponent(JSON.stringify(users, null, 2))));
-    const putBody = {
-      message: "auth: register " + username,
-      content,
-      branch: "main",
-    };
+    const putBody = { message: "auth: register " + username, content, branch: "main" };
     if (sha) putBody.sha = sha;
 
     const putRes = await fetch(`https://api.github.com/repos/${REPO}/contents/${PATH}`, {
@@ -89,21 +66,29 @@
 
     setMsg("Creating account…", true);
     try {
-      let created;
-      if (cfg.apiUrl) {
-        created = await registerViaWorker(username, password);
-      } else if (cfg.githubToken) {
-        created = await registerViaGitHubToken(username, password);
-      } else {
-        const pass_hash = await sha256Hex(username.toLowerCase() + "|" + password + "|" + SALT);
+      if (!cfg.githubToken && !cfg.apiUrl) {
         setMsg(
-          "Auth API not set yet. Owner: deploy auth/worker.js OR temporarily set githubToken in auth-config.js. Hash for manual add: " +
-            pass_hash,
+          'Auth not connected. Owner: edit auth/users.json on GitHub and add {"username":"' +
+            username +
+            '","password":"YOUR_PASSWORD"} — or set githubToken / apiUrl in auth-config.js.',
           false
         );
         return;
       }
-      setMsg("Account created for " + created + ". Open fflag.ahk and log in.", true);
+      let created;
+      if (cfg.apiUrl) {
+        const res = await fetch(String(cfg.apiUrl).replace(/\/+$/, "") + "/register", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ username, password }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data.ok) throw new Error(data.error || "Registration failed");
+        created = data.username;
+      } else {
+        created = await registerViaGitHubToken(username, password);
+      }
+      setMsg("Account created for " + created + ". Open fflag and log in.", true);
       form.reset();
     } catch (err) {
       setMsg(String(err.message || err), false);
