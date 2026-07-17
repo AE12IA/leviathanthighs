@@ -35,7 +35,7 @@ body:not(.page) {
 body.landing {
   position: relative;
   overflow: hidden;
-  background: #070707;
+  background: #050505;
 }
 
 .bg-canvas {
@@ -45,6 +45,8 @@ body.landing {
   height: 100%;
   z-index: 0;
   pointer-events: none;
+  display: block;
+  background: #050505;
 }
 
 .stage {

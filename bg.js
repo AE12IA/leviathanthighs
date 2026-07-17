@@ -2,117 +2,116 @@
   const canvas = document.getElementById("bg-canvas");
   if (!canvas) return;
 
-  const ctx = canvas.getContext("2d", { alpha: true });
+  const ctx = canvas.getContext("2d", { alpha: false });
   if (!ctx) return;
 
   const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   const DPR_MAX = 2;
 
+  // Dense spiral lanes → looks like a moving tunnel, not a star sprinkle
+  const ARMS = 56;
+  const DOTS_PER_ARM = 72;
+
   let w = 0;
   let h = 0;
   let cx = 0;
   let cy = 0;
-  let particles = [];
+  let maxR = 1;
+  let dots = [];
   let raf = 0;
-  let last = 0;
+  let t0 = performance.now();
 
   function resize() {
     const dpr = Math.min(window.devicePixelRatio || 1, DPR_MAX);
-    w = window.innerWidth;
-    h = window.innerHeight;
+    w = Math.max(1, window.innerWidth);
+    h = Math.max(1, window.innerHeight);
     canvas.width = Math.floor(w * dpr);
     canvas.height = Math.floor(h * dpr);
     canvas.style.width = w + "px";
     canvas.style.height = h + "px";
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     cx = w * 0.5;
-    cy = h * 0.42;
+    cy = h * 0.5;
+    maxR = Math.hypot(w, h) * 0.78;
     seed();
   }
 
   function seed() {
-    const count = Math.min(2200, Math.floor((w * h) / 480));
-    const maxR = Math.hypot(w, h) * 0.72;
-    particles = new Array(count);
-    for (let i = 0; i < count; i++) {
-      particles[i] = {
-        // depth 0 = far / center, 1 = near / edge
-        z: Math.random(),
-        a: Math.random() * Math.PI * 2,
-        // slight arm twist so rings look like a spiral tunnel
-        twist: (Math.random() - 0.5) * 0.35,
-        size: 0.55 + Math.random() * 1.35,
-      };
+    dots = [];
+    for (let arm = 0; arm < ARMS; arm++) {
+      const armAngle = (arm / ARMS) * Math.PI * 2;
+      const phase = Math.random();
+      for (let i = 0; i < DOTS_PER_ARM; i++) {
+        dots.push({
+          armAngle,
+          // evenly spaced along the tunnel depth, with a little jitter
+          base: (i + Math.random() * 0.35) / DOTS_PER_ARM,
+          phase,
+          size: 0.7 + Math.random() * 1.1,
+        });
+      }
     }
-    // denser rings near center for the converging look
-    for (let i = 0; i < count * 0.22; i++) {
-      particles[i].z = Math.pow(Math.random(), 2.4);
-    }
-    particles._maxR = maxR;
   }
 
   function draw(now) {
-    const dt = Math.min(0.05, (now - last) / 1000 || 0.016);
-    last = now;
+    const elapsed = (now - t0) / 1000;
+    const speed = reduceMotion ? 0 : 0.18;
+    const spin = reduceMotion ? 0 : elapsed * 0.12;
+    const twist = 2.35; // how much lanes curve into a spiral
 
-    ctx.clearRect(0, 0, w, h);
-
-    // soft vignette so content stays readable
-    const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.max(w, h) * 0.75);
-    g.addColorStop(0, "rgba(14,14,14,0)");
-    g.addColorStop(0.55, "rgba(10,10,10,0.15)");
-    g.addColorStop(1, "rgba(6,6,6,0.55)");
-    ctx.fillStyle = g;
+    // Solid fill every frame so it reads as a real background, not a layer of dots
+    ctx.fillStyle = "#050505";
     ctx.fillRect(0, 0, w, h);
 
-    const maxR = particles._maxR || Math.hypot(w, h) * 0.72;
-    const spin = now * 0.000045;
+    for (let i = 0; i < dots.length; i++) {
+      const d = dots[i];
+      let depth = d.base + d.phase * 0.02 + elapsed * speed;
+      depth = depth - Math.floor(depth); // wrap 0..1
 
-    ctx.fillStyle = "#ffffff";
+      // Ease so dots accelerate as they approach the camera
+      const rNorm = Math.pow(depth, 1.55);
+      const radius = rNorm * maxR;
+      const angle = d.armAngle + spin + rNorm * twist;
 
-    for (let i = 0; i < particles.length; i++) {
-      const p = particles[i];
-
-      if (!reduceMotion) {
-        // fly toward camera
-        p.z += dt * (0.085 + p.z * 0.22);
-        if (p.z >= 1) {
-          p.z -= 1;
-          p.a = Math.random() * Math.PI * 2;
-        }
-      }
-
-      const depth = Math.pow(p.z, 1.35);
-      const radius = depth * maxR;
-      const angle = p.a + spin + p.twist * depth * 6;
       const x = cx + Math.cos(angle) * radius;
-      const y = cy + Math.sin(angle) * radius * 0.92;
+      const y = cy + Math.sin(angle) * radius * 0.95;
 
-      if (x < -4 || y < -4 || x > w + 4 || y > h + 4) continue;
+      if (x < -6 || y < -6 || x > w + 6 || y > h + 6) continue;
 
-      const alpha = 0.12 + depth * 0.72;
-      const size = p.size * (0.35 + depth * 1.35);
+      // Nearer = brighter / larger; faint near the vanishing point
+      const alpha = 0.08 + rNorm * 0.82;
+      const size = d.size * (0.25 + rNorm * 1.55);
 
       ctx.globalAlpha = alpha;
+      ctx.fillStyle = "#ffffff";
       ctx.beginPath();
       ctx.arc(x, y, size, 0, Math.PI * 2);
       ctx.fill();
     }
 
     ctx.globalAlpha = 1;
+
+    // Soft center + edge vignette so the brand stays readable
+    const mist = ctx.createRadialGradient(cx, cy, 0, cx, cy, maxR * 0.95);
+    mist.addColorStop(0, "rgba(5,5,5,0.55)");
+    mist.addColorStop(0.28, "rgba(5,5,5,0.12)");
+    mist.addColorStop(0.7, "rgba(5,5,5,0)");
+    mist.addColorStop(1, "rgba(5,5,5,0.45)");
+    ctx.fillStyle = mist;
+    ctx.fillRect(0, 0, w, h);
+
     raf = requestAnimationFrame(draw);
   }
 
   window.addEventListener("resize", resize, { passive: true });
   resize();
-  last = performance.now();
   raf = requestAnimationFrame(draw);
 
   document.addEventListener("visibilitychange", () => {
     if (document.hidden) {
       cancelAnimationFrame(raf);
     } else {
-      last = performance.now();
+      t0 = performance.now() - ((performance.now() - t0) % 100000);
       raf = requestAnimationFrame(draw);
     }
   });
