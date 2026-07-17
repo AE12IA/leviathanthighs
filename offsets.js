@@ -1,5 +1,7 @@
 (() => {
   const REPO = "AE12IA/offsets";
+  const VERSIONS_URL =
+    "https://raw.githubusercontent.com/" + REPO + "/main/versions.json";
   const HPP = (branch) =>
     "https://raw.githubusercontent.com/" +
     REPO +
@@ -120,6 +122,20 @@
     if (valueEl && !selectedVersion) valueEl.textContent = "Select a version…";
     setMeta(versions.length + " versions ready");
     return true;
+  }
+
+  async function refreshVersionsFromRepo() {
+    try {
+      const res = await fetch(VERSIONS_URL + "?t=" + Date.now(), {
+        cache: "no-store",
+      });
+      if (!res.ok) throw new Error("versions.json " + res.status);
+      const data = await res.json();
+      if (applyVersions(data)) return true;
+    } catch (err) {
+      console.warn("Could not refresh versions.json from", REPO, err);
+    }
+    return false;
   }
 
   function renderMenu() {
@@ -270,6 +286,7 @@
   }
 
   applyVersions(readInlineVersions() || FALLBACK);
+  refreshVersionsFromRepo();
 
   if (trigger) {
     trigger.addEventListener("click", function () {
