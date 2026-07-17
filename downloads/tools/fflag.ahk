@@ -1481,7 +1481,7 @@ FetchOffsets() {
     try {
         whr := ComObject("WinHttp.WinHttpRequest.5.1")
         
-        whr.Open("GET", "https://raw.githubusercontent.com/AE12IA/fflag-offsets/main/prefixes.json", true)
+        whr.Open("GET", "https://raw.githubusercontent.com/AE12IA/offsets/main/prefixes.json", true)
         whr.Send()
         whr.WaitForResponse()
         if (whr.Status == 200) {
@@ -1503,7 +1503,7 @@ FetchOffsets() {
     		return
 	}
 
-	offsetsUrl := "https://raw.githubusercontent.com/AE12IA/fflag-offsets/" versionBranch "/offsets.hpp"
+	offsetsUrl := "https://raw.githubusercontent.com/AE12IA/offsets/" versionBranch "/offsets.hpp"
         whr.Open("GET", offsetsUrl, true)
         whr.Send()
         whr.WaitForResponse()

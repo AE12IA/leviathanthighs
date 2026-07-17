@@ -1,5 +1,5 @@
 (() => {
-  const REPO = "AE12IA/fflag-offsets";
+  const REPO = "AE12IA/offsets";
   const HPP = (branch) =>
     "https://raw.githubusercontent.com/" +
     REPO +
