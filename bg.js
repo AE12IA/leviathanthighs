@@ -27,8 +27,9 @@
     h = Math.max(1, window.innerHeight);
     canvas.width = Math.floor(w * dpr);
     canvas.height = Math.floor(h * dpr);
-    canvas.style.width = w + "px";
-    canvas.style.height = h + "px";
+    // Keep canvas out of document flow even if CSS is cached/stale
+    canvas.style.cssText =
+      "position:fixed;top:0;left:0;width:100%;height:100%;z-index:0;pointer-events:none;display:block;background:#050505";
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     cx = w * 0.5;
     cy = h * 0.5;

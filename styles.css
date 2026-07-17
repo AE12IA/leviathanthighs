@@ -33,33 +33,60 @@ body:not(.page) {
 }
 
 body.landing {
-  position: relative;
+  display: block;
+  height: 100vh;
+  height: 100dvh;
+  min-height: 100vh;
+  min-height: 100dvh;
   overflow: hidden;
   background: #050505;
 }
 
 .bg-canvas {
-  position: fixed;
-  inset: 0;
-  width: 100%;
-  height: 100%;
+  position: fixed !important;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100% !important;
+  height: 100% !important;
   z-index: 0;
   pointer-events: none;
   display: block;
   background: #050505;
 }
 
+.landing-shell {
+  position: relative;
+  z-index: 1;
+  height: 100vh;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  pointer-events: none;
+}
+
+.landing-shell a,
+.landing-shell button {
+  pointer-events: auto;
+}
+
 .stage {
   position: relative;
   z-index: 1;
-  flex: 1;
+  flex: 1 1 auto;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   text-align: center;
-  padding: 2rem 1.25rem 4rem;
+  padding: 2rem 1.25rem 1.5rem;
   animation: fade 0.7s ease both;
+  pointer-events: none;
+}
+
+.stage .actions {
+  pointer-events: auto;
 }
 
 .brand {
@@ -111,10 +138,12 @@ body.landing {
 footer {
   position: relative;
   z-index: 1;
+  flex: 0 0 auto;
   padding: 0 1.25rem 1.25rem;
   font-size: 0.8rem;
   color: var(--muted);
   animation: fade 0.8s ease 0.1s both;
+  pointer-events: none;
 }
 
 body.landing .brand,
