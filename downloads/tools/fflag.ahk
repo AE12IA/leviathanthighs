@@ -579,13 +579,18 @@ HasValidSession() {
     if (!FileExist(AuthSessionFile))
         return false
     try {
-        data := JsonParseObj(FileRead(AuthSessionFile, "UTF-8"))
-        if (!data.Has("username") || !data.Has("until"))
+        raw := FileRead(AuthSessionFile, "UTF-8")
+        ; Strip UTF-8 BOM if present (AHK FileAppend used to write one)
+        if (Ord(raw) = 0xFEFF)
+            raw := SubStr(raw, 2)
+        if !RegExMatch(raw, '"username"\s*:\s*"([^"]+)"', &um)
             return false
-        expiresAt := data["until"]
-        if (Type(expiresAt) = "String")
-            expiresAt := DateParseUnix(expiresAt)
-        if (expiresAt > UnixNow() && data["username"] != "")
+        if !RegExMatch(raw, '"until"\s*:\s*(\d+)', &tm)
+            return false
+        user := Trim(um[1])
+        ; AHK v2 Integer() does not accept strings — use +0 / Number()
+        expiresAt := tm[1] + 0
+        if (user != "" && expiresAt > UnixNow())
             return true
     } catch {
     }
@@ -594,13 +599,17 @@ HasValidSession() {
 
 SaveSession(username) {
     global AuthSessionFile
+    ; Auto-login for 30 days, then user must sign in again
     expiresAt := UnixNow() + (30 * 24 * 3600)
-    text := '{`n'
+    text := "{`n"
         . '  "username": "' EscapeJson(username) '",`n'
         . '  "until": ' expiresAt '`n'
-        . '}`n'
+        . "}`n"
     try FileDelete(AuthSessionFile)
-    FileAppend(text, AuthSessionFile, "UTF-8")
+    ; UTF-8-RAW = no BOM
+    f := FileOpen(AuthSessionFile, "w", "UTF-8-RAW")
+    f.Write(text)
+    f.Close()
 }
 
 ShowLoginDialog() {
@@ -610,7 +619,7 @@ ShowLoginDialog() {
     L.SetFont("s16 Bold cWhite", "Segoe UI")
     L.Add("Text", "x24 y22 w320 h28 BackgroundTrans", "FFlag Login")
     L.SetFont("s9 c0x8A8A8A", "Segoe UI")
-    L.Add("Text", "x24 y54 w320 h36 BackgroundTrans", "Use the account from the Leviathan Register page.")
+    L.Add("Text", "x24 y54 w320 h36 BackgroundTrans", "Stays signed in for 30 days. Use your Leviathan Register account.")
 
     L.SetFont("s9 c0x8A8A8A", "Segoe UI")
     L.Add("Text", "x24 y104 w320 h18 BackgroundTrans", "Username")
