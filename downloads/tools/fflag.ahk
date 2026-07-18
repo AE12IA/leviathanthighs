@@ -1,4 +1,4 @@
-#Requires AutoHotkey v2.0
+﻿#Requires AutoHotkey v2.0
 #SingleInstance Force
 
 ListLines(false)
@@ -41,6 +41,12 @@ SingletonExe := SingletonDir "\niggastrapAHK.exe"
 UserFlags      := []
 AllOffsets     := Map()
 AllPresetFlags := []
+SelectedVersionOverride := ""  ; empty = Auto (running process, else newest folder)
+LoadedVersionBranch := ""
+AllVersionChoices := []   ; full list (local + github)
+VersionChoices := []      ; currently shown (filtered)
+SuppressVersionListEvent := false
+BuildVersionMap := Map()  ; FileVersion "0.728.0.7280895" → "version-hash"
 RobloxPID      := 0
 SelectedRow    := 0
 CurrentView    := "Main"
@@ -48,8 +54,8 @@ LogLines       := []
 PrefixMap := Map()
 global IsGuiHidden := false
 
-; —— Auth (Leviathan) ——
-AUTH_USERS_URL := "https://raw.githubusercontent.com/AE12IA/leviathanthighs/main/auth/users.json"
+; â€”â€” Auth (Leviathan) â€”â€”
+; Accounts live in private repo AE12IA/leviathan-auth â€” login only via Worker
 AUTH_API_URL   := "https://gentle-mouse-f361.fnaf22foxy.workers.dev"
 AUTH_SALT      := "leviathan-auth-v1"
 AuthSessionFile := AppDir "\auth_session.json"
@@ -191,8 +197,10 @@ class ahhfuck {
         if (!sgl)
             return false
 
+        lookupName := GetPrefixedName(name)
+
         hash := 0xcbf29ce484222325
-        Loop Parse, name {
+        Loop Parse, lookupName {
             hash := hash ^ Ord(A_LoopField)
             hash := Integer(hash * 0x100000001b3)
         }
@@ -221,7 +229,7 @@ class ahhfuck {
                 ? this.ReadString(NumGet(entry, 16, "Int64"), str_sz)
                 : StrGet(entry.ptr + 16, str_sz, "UTF-8")
 
-            if (ename == name) {
+            if (ename == lookupName || ename == name) {
                 vpr := NumGet(entry, 48, "Int64")
                 if (!vpr)
                     return false
@@ -487,7 +495,39 @@ opt := "x" (CX + 52) " y" (BY + 266) " w" (CW - 80) " h30 BackgroundTrans"
 RADesc := MyGui.Add("Text", opt, "Re-applies FFlags to keep them working.")
 RADesc.Visible := false
 
-SetCtrls := [SetTitle, SetSepTop, SetCard1, UseSingleton, USDesc, SetCard2, AutoApplyCB, AADesc, SetCard3, ReApplyCB, RADesc]
+opt := "x" (CX + 14) " y" (BY + 328) " w" (CW - 28) " h210 Background" C_PANEL
+SetCard4 := MyGui.Add("Text", opt, "")
+SetCard4.Visible := false
+
+MyGui.SetFont("s10 Norm c" C_TXT, "Segoe UI")
+opt := "x" (CX + 30) " y" (BY + 338) " w" (CW - 180) " h20 BackgroundTrans"
+VerLbl := MyGui.Add("Text", opt, "Roblox version (offsets) — search, then click")
+VerLbl.Visible := false
+
+opt := "x" (CX + CW - 156) " y" (BY + 334) " w110 h28 -Theme"
+ReloadOffBtn := MyGui.Add("Button", opt, "Reload")
+ReloadOffBtn.OnEvent("Click", OnVersionReloadClicked)
+ReloadOffBtn.Visible := false
+
+MyGui.SetFont("s9 Norm c" C_TXT, "Segoe UI")
+opt := "x" (CX + 30) " y" (BY + 366) " w" (CW - 60) " h26 Background" C_SRCH " c" C_TXT " +Border"
+VersionSearch := MyGui.Add("Edit", opt)
+VersionSearch.OnEvent("Change", OnVersionSearchChanged)
+VersionSearch.Visible := false
+SendMessage(0x1501, 1, StrPtr("Search version... e.g. 5cf227"), VersionSearch.Hwnd)
+
+opt := "x" (CX + 30) " y" (BY + 398) " w" (CW - 60) " h110 Background" C_SRCH " c" C_TXT " +Border"
+VersionList := MyGui.Add("ListBox", opt, ["Auto (running / newest local)"])
+VersionList.OnEvent("Change", OnVersionListChanged)
+VersionList.OnEvent("DoubleClick", OnVersionReloadClicked)
+VersionList.Visible := false
+
+MyGui.SetFont("s8 Norm c" C_DIM, "Segoe UI")
+opt := "x" (CX + 30) " y" (BY + 512) " w" (CW - 60) " h20 BackgroundTrans"
+VerDesc := MyGui.Add("Text", opt, "Type part of the version hash to filter. Click a result to load offsets.")
+VerDesc.Visible := false
+
+SetCtrls := [SetTitle, SetSepTop, SetCard1, UseSingleton, USDesc, SetCard2, AutoApplyCB, AADesc, SetCard3, ReApplyCB, RADesc, SetCard4, VerLbl, VersionSearch, VersionList, ReloadOffBtn, VerDesc]
 
 
 opt := "x" CX " y" FY " w" CW " h1 Background" C_SEP
@@ -499,15 +539,19 @@ MyGui.SetFont("s10 Bold c0x4CAF50", "Segoe UI")
 opt := "x" (CX + 14) " y" (FY + 18) " w18 h20 BackgroundTrans"
 StatusDot := MyGui.Add("Text", opt, Chr(0x25CF))
 MyGui.SetFont("s9 Norm c" C_DIM, "Segoe UI")
-opt := "x" (CX + 34) " y" (FY + 19) " w380 h18 BackgroundTrans"
+opt := "x" (CX + 34) " y" (FY + 19) " w300 h18 BackgroundTrans"
 StatusTxt := MyGui.Add("Text", opt, "Waiting for Roblox...")
 
 FBY := FY + 12
-opt := "x" (CX + CW - 452) " y" FBY " w136 h30 -Theme"
+opt := "x" (CX + CW - 568) " y" FBY " w108 h30 -Theme"
+AttachBtn := MyGui.Add("Button", opt, "* Attach")
+AttachBtn.OnEvent("Click", (*) => AttachToRunningRoblox())
+
+opt := "x" (CX + CW - 450) " y" FBY " w130 h30 -Theme"
 KillBtn := MyGui.Add("Button", opt, "x  Kill Roblox")
 KillBtn.OnEvent("Click", (*) => KillRoblox())
 
-opt := "x" (CX + CW - 306) " y" FBY " w150 h30 -Theme"
+opt := "x" (CX + CW - 310) " y" FBY " w150 h30 -Theme"
 ApplyBtn := MyGui.Add("Button", opt, ">  Apply to Roblox")
 ApplyBtn.OnEvent("Click", (*) => ApplyFlagsToRoblox(false))
 
@@ -560,7 +604,7 @@ SaveSession(username) {
 }
 
 ShowLoginDialog() {
-    global AUTH_USERS_URL, AUTH_API_URL
+    global AUTH_API_URL
     L := Gui("-Caption +Border +AlwaysOnTop", "Leviathan Login")
     L.BackColor := "0x0A0A0B"
     L.SetFont("s16 Bold cWhite", "Segoe UI")
@@ -593,7 +637,7 @@ ShowLoginDialog() {
             errTxt.Value := "Enter username and password."
             return
         }
-        errTxt.Value := "Checking…"
+        errTxt.Value := "Checkingâ€¦"
         try {
             VerifyLogin(u, p)
             SaveSession(u)
@@ -613,41 +657,25 @@ ShowLoginDialog() {
 }
 
 VerifyLogin(username, password) {
-    global AUTH_API_URL, AUTH_USERS_URL
+    global AUTH_API_URL
     hwid := GetHardwareId()
     if (hwid = "")
         throw Error("Could not read PC hardware ID.")
 
-    if (AUTH_API_URL != "") {
-        body := '{"username":"' EscapeJson(username)
-            . '","password":"' EscapeJson(password)
-            . '","hwid":"' EscapeJson(hwid) '"}'
-        resp := HttpRequest("POST", RTrim(AUTH_API_URL, "/") "/login", body, "application/json")
-        if (InStr(resp, '"ok":true') || InStr(resp, '"ok": true'))
-            return true
-        if (InStr(resp, "locked to another") || InStr(resp, "another PC") || InStr(resp, "hardware"))
-            throw Error("This account is locked to another PC.")
-        if (InStr(resp, "Invalid"))
-            throw Error("Invalid username or password.")
-        throw Error("Login failed. Try again.")
-    }
+    if (AUTH_API_URL = "")
+        throw Error("Auth API not configured.")
 
-    ; Fallback (read-only): check password + existing hwid, cannot bind first time
-    raw := HttpRequest("GET", AUTH_USERS_URL "?t=" UnixNow(), "", "")
-    users := JsonParseArr(raw)
-    for u in users {
-        uname := u.Has("username") ? String(u["username"]) : ""
-        pass := u.Has("password") ? String(u["password"]) : ""
-        if (StrLower(uname) != StrLower(username) || pass != password)
-            continue
-        bound := u.Has("hwid") ? Trim(String(u["hwid"])) : ""
-        if (bound = "")
-            throw Error("Auth API required to bind this PC. Contact owner.")
-        if (bound != hwid)
-            throw Error("This account is locked to another PC.")
+    body := '{"username":"' EscapeJson(username)
+        . '","password":"' EscapeJson(password)
+        . '","hwid":"' EscapeJson(hwid) '"}'
+    resp := HttpRequest("POST", RTrim(AUTH_API_URL, "/") "/login", body, "application/json")
+    if (InStr(resp, '"ok":true') || InStr(resp, '"ok": true'))
         return true
-    }
-    throw Error("Invalid username or password.")
+    if (InStr(resp, "locked to another") || InStr(resp, "another PC") || InStr(resp, "hardware"))
+        throw Error("This account is locked to another PC.")
+    if (InStr(resp, "Invalid"))
+        throw Error("Invalid username or password.")
+    throw Error("Login failed. Try again.")
 }
 
 GetHardwareId() {
@@ -884,8 +912,10 @@ SwitchView(view) {
         TTxt.Value := "FFlags Editor"
     else if (isLogs)
         TTxt.Value := "Injection Logs"
-    else
+    else {
         TTxt.Value := "Settings"
+        RefreshVersionDropdown()
+    }
 }
 
 
@@ -1374,7 +1404,7 @@ ApplyFlagsToRoblox(isAuto := false) {
         }
         if (!sgl) {
             SetStatus("Singleton not found!", "0xFF5252")
-            AddLog("Singleton", "—", "FAILED: singleton not found")
+            AddLog("Singleton", "â€”", "FAILED: singleton not found")
             return
         }
         for flag in UserFlags {
@@ -1389,27 +1419,53 @@ ApplyFlagsToRoblox(isAuto := false) {
         }
     } else {
         for flag in UserFlags {
-            if (AllOffsets.Has(flag["name"])) {
-                addr := ahhfuck.moduleBase + AllOffsets[flag["name"]]
-                ok   := WriteRawMemory(addr, flag["value"], flag["type"])
-                if (ok) {
-                    succCount++
-                    AddLog("Offsets", flag["name"], "OK  ->  " flag["value"])
-                } else {
-                    failCount++
-                    AddLog("Offsets", flag["name"], "FAILED")
-                }
+            ok := WriteFlagByOffset(flag["name"], flag["value"], flag["type"])
+            if (ok) {
+                succCount++
+                AddLog("Offsets", flag["name"], "OK  ->  " flag["value"])
+            } else if (!GetFlagRva(flag["name"])) {
+                failCount++
+                prefixed := GetPrefixedName(flag["name"])
+                AddLog("Offsets", flag["name"], "FAILED: no offset (lookup: " prefixed ")")
             } else {
                 failCount++
-                AddLog("Offsets", flag["name"], "FAILED: no offset")
+                AddLog("Offsets", flag["name"], "FAILED")
             }
         }
     }
 
     total := UserFlags.Length
-    AddLog(method, "— SUMMARY —", "Applied " succCount "/" total " flags  (" failCount " failed)")
+    AddLog(method, "â€” SUMMARY â€”", "Applied " succCount "/" total " flags  (" failCount " failed)")
     SetStatus("Applied " succCount "/" total " via " method, "0x4CAF50")
     SetTimer(() => SetStatus("Ready"), -5000)
+}
+
+GetFlagRva(name) {
+    global AllOffsets
+    if (AllOffsets.Has(name))
+        return AllOffsets[name]
+    p := GetPrefixedName(name)
+    if (p != name && AllOffsets.Has(p))
+        return AllOffsets[p]
+    clean := RegExReplace(name, "^(DFString|SFString|FString|DFFlag|SFFlag|DFInt|DFLog|FFlag|FInt|FLog|SFInt|Int)")
+    if (clean != name && AllOffsets.Has(clean))
+        return AllOffsets[clean]
+    return 0
+}
+
+WriteFlagByOffset(name, value, type) {
+    global ahhfuck
+    rva := GetFlagRva(name)
+    if (!rva || !ahhfuck.hProcess || !ahhfuck.moduleBase)
+        return false
+    flagObj := ahhfuck.moduleBase + rva
+    vgs := ahhfuck.ReadUInt64(flagObj + 0x30)
+    if (vgs) {
+        vp := ahhfuck.ReadUInt64(vgs + 0xC0)
+        if (vp)
+            return WriteRawMemory(vp, value, type)
+    }
+    return WriteRawMemory(flagObj, value, type)
 }
 
 WriteRawMemory(addr, value, type) {
@@ -1420,8 +1476,8 @@ WriteRawMemory(addr, value, type) {
         sz  := 0
         if (type = "bool") {
             v := (StrLower(String(value)) = "true" || value = "1") ? 1 : 0
-            NumPut("Char", v, buf)
-            sz := 1
+            NumPut("Int", v, buf)
+            sz := 4
         } else if (type = "int") {
             NumPut("Int", Integer(value), buf)
             sz := 4
@@ -1447,6 +1503,64 @@ KillRoblox() {
     SetTimer(() => SetStatus("Ready"), -3000)
 }
 
+; Manual Attach: read running Roblox exe build → auto-select matching GitHub version → load offsets
+AttachToRunningRoblox() {
+    global RobloxPID, SelectedVersionOverride, AllVersionChoices
+
+    pid := ProcessExist("RobloxPlayerBeta.exe")
+    if (!pid) {
+        SetStatus("Roblox not running — join a game first", "0xFF5252")
+        AddLog("System", "Attach", "No RobloxPlayerBeta.exe found")
+        return
+    }
+
+    SetStatus("Attaching...", "0xFFCA28")
+    if (!ahhfuck.Attach(pid)) {
+        SetStatus("Attach failed (try Run as Admin)", "0xFF5252")
+        AddLog("System", "Attach", "OpenProcess failed for PID=" pid)
+        return
+    }
+
+    RobloxPID := pid
+    det := DetectRunningRobloxVersion(pid)
+    runningVer := det.ver
+    path := det.path
+    how := det.how
+    build := det.build
+
+    if (runningVer = "") {
+        SetStatus("Unknown Roblox build " (build != "" ? build : "?") " — no offsets map", "0xFFCA28")
+        AddLog("System", "Attach", "Could not map exe to a version. path=" path " build=" build)
+        return
+    }
+
+    ; Auto-select this version in Settings and remember build→version for next time
+    SelectedVersionOverride := runningVer
+    SaveSettings()
+    if (build != "")
+        RememberBuildMapping(build, runningVer)
+
+    try {
+        if (AllVersionChoices.Length = 0)
+            RefreshVersionDropdown()
+        else {
+            try VersionSearch.Value := ""
+            FilterVersionList("")
+        }
+    }
+
+    SetStatus("Attached [" runningVer "]  PID " pid, "0x4CAF50")
+    AddLog("System", "Attach", "PID=" pid " build=" build " via " how " → " runningVer " | " path)
+
+    FetchOffsets(runningVer)
+
+    if (AutoApplyCB.Value) {
+        if (UseSingleton.Value && FileExist(SingletonExe))
+            try Run(SingletonExe)
+        SetTimer(() => ApplyFlagsToRoblox(true), -4000)
+    }
+}
+
 
 SetStatus(msg, dotCol := "0x4CAF50") {
     StatusTxt.Value := msg
@@ -1455,13 +1569,29 @@ SetStatus(msg, dotCol := "0x4CAF50") {
 
 
 MonitorRoblox() {
-    global RobloxPID
+    global RobloxPID, SelectedVersionOverride, LoadedVersionBranch
     pid := ProcessExist("RobloxPlayerBeta.exe")
     if (pid && pid != RobloxPID) {
         RobloxPID := pid
         if (ahhfuck.Attach(pid)) {
             SetStatus("Roblox attached  (PID " pid ")", "0x4CAF50")
             AddLog("System", "RobloxPlayerBeta.exe", "Attached  PID=" pid)
+            ; Auto: sync offsets when no manual Settings override (or override empty)
+            if (SelectedVersionOverride = "") {
+                det := DetectRunningRobloxVersion(pid)
+                runningVer := det.ver
+                if (runningVer != "") {
+                    if (runningVer != LoadedVersionBranch) {
+                        AddLog("System", "GetVersion", "Running client is " runningVer " via " det.how " — reloading offsets")
+                        FetchOffsets(runningVer)
+                    } else {
+                        AddLog("System", "GetVersion", "Running client matches loaded offsets [" runningVer "]")
+                    }
+                } else {
+                    AddLog("System", "GetVersion", "WARN: unknown client path=" det.path " build=" det.build)
+                    SetStatus("Unknown Roblox build — Attach needs a mapped version", "0xFFCA28")
+                }
+            }
             if (AutoApplyCB.Value) {
                 if (UseSingleton.Value && FileExist(SingletonExe))
                     try Run(SingletonExe)
@@ -1476,8 +1606,8 @@ MonitorRoblox() {
 }
 
 
-FetchOffsets() {
-    global PrefixMap, AllOffsets, AllPresetFlags
+FetchOffsets(forceVersion := "") {
+    global PrefixMap, AllOffsets, AllPresetFlags, LoadedVersionBranch
     try {
         whr := ComObject("WinHttp.WinHttpRequest.5.1")
         
@@ -1495,7 +1625,7 @@ FetchOffsets() {
             }
         }
 
-        versionBranch := GetCurrentRobloxVersionBranch()
+        versionBranch := (forceVersion != "") ? forceVersion : ResolveRobloxVersionBranch()
 	if (versionBranch = "") 
 	{
     		SetStatus("Roblox version folder not found in AppData\Local\Roblox\Versions", "0xFF5252")
@@ -1507,17 +1637,35 @@ FetchOffsets() {
         whr.Open("GET", offsetsUrl, true)
         whr.Send()
         whr.WaitForResponse()
-        if RegExMatch(whr.ResponseText, "s)namespace FFlags\s*\{([^}]+)\}", &match) {
-            content := match[1]
-            pos     := 1
-            AllOffsets := Map()
-            AllPresetFlags := []
-            while (pos := RegExMatch(content, "uintptr_t\s+(\w+)\s*=\s*(0x[0-9A-Fa-f]+);", &m, pos)) {
-                AllOffsets[m[1]] := Integer(m[2])
-                AllPresetFlags.Push(m[1])
-                pos += m.Len
-            }
+        if (whr.Status != 200) {
+            SetStatus("No offsets on GitHub for " versionBranch, "0xFF5252")
+            AddLog("System", "FetchOffsets", "HTTP " whr.Status " for " versionBranch)
+            return
         }
+
+        body := whr.ResponseText
+        AllOffsets := Map()
+        AllPresetFlags := []
+        ; Match both old `uintptr_t Name = 0x..` and theo `inline constexpr uintptr_t Name = 0x..`
+        pos := 1
+        while (pos := RegExMatch(body, "uintptr_t\s+(\w+)\s*=\s*(0x[0-9A-Fa-f]+)\s*;", &m, pos)) {
+            name := m[1]
+            if (name = "Pointer" || name = "ToFlag" || name = "ToValue" || name = "FFlagList") {
+                pos += m.Len
+                continue
+            }
+            AllOffsets[name] := Integer(m[2])
+            AllPresetFlags.Push(name)
+            pos += m.Len
+        }
+
+        if (AllPresetFlags.Length = 0) {
+            SetStatus("offsets.hpp had no flag RVAs for " versionBranch, "0xFF5252")
+            AddLog("System", "FetchOffsets", "Parsed 0 flags from " versionBranch)
+            return
+        }
+
+        LoadedVersionBranch := versionBranch
         SetStatus("Offsets ready (" AllPresetFlags.Length " flags) [" versionBranch "]", "0x4CAF50")
         AddLog("System", "FetchOffsets", "Loaded " AllPresetFlags.Length " from " versionBranch)
         SetTimer(() => SetStatus("Ready"), -3000)
@@ -1534,13 +1682,17 @@ GetPrefixedName(name) {
 }
 
 SaveSettings() {
+    global SelectedVersionOverride
+    ver := SelectedVersionOverride != "" ? SelectedVersionOverride : ""
     s := '{"UseSingleton":' (UseSingleton.Value ? "true" : "false") 
        . ',"AutoApply":' (AutoApplyCB.Value ? "true" : "false")
-       . ',"ReApply":' (ReApplyCB.Value ? "true" : "false") '}'
+       . ',"ReApply":' (ReApplyCB.Value ? "true" : "false")
+       . ',"RobloxVersion":"' ver '"}'
     try FileOpen(SettingsFile, "w", "UTF-8").Write(s)
 }
 
 LoadSettings() {
+    global SelectedVersionOverride
     if (!FileExist(SettingsFile))
         return
     try {
@@ -1551,6 +1703,8 @@ LoadSettings() {
             AutoApplyCB.Value := (m2[1] = "true")
         if RegExMatch(c, '"ReApply":\s*(true|false)', &m3)
             ReApplyCB.Value := (m3[1] = "true")
+        if RegExMatch(c, '"RobloxVersion":\s*"([^"]*)"', &m4)
+            SelectedVersionOverride := m4[1]
         
         ManageReApplyTimer()
     }
@@ -1608,16 +1762,15 @@ ExecuteReApplyBatches() {
 
 
         current := ""
-        addr := 0
-        vp := 0 
 
         if (UseSingleton.Value) {
             sgl := ahhfuck.GetSingleton()
             if (!sgl)
                 continue
 
+            lookupName := GetPrefixedName(name)
             hash := 0xcbf29ce484222325
-            Loop Parse, name {
+            Loop Parse, lookupName {
                 hash := hash ^ Ord(A_LoopField)
                 hash := Integer(hash * 0x100000001b3)
             }
@@ -1644,7 +1797,7 @@ ExecuteReApplyBatches() {
                     ? ahhfuck.ReadString(NumGet(entry, 16, "Int64"), str_sz)
                     : StrGet(entry.ptr + 16, str_sz, "UTF-8")
 
-                if (ename == name) {
+                if (ename == lookupName || ename == name) {
                     vpr := NumGet(entry, 48, "Int64")
                     if (vpr) {
                         vp := ahhfuck.ReadUInt64(vpr + 0xC0)
@@ -1660,10 +1813,18 @@ ExecuteReApplyBatches() {
 
             if (!found)
                 continue
-        } else if (AllOffsets.Has(name)) {
-            addr := ahhfuck.moduleBase + AllOffsets[name]
-            if (ftype = "bool" || ftype = "int") {
-                current := ahhfuck.ReadInt32(addr)
+        } else {
+            rva := GetFlagRva(name)
+            if (rva) {
+                flagObj := ahhfuck.moduleBase + rva
+                vgs := ahhfuck.ReadUInt64(flagObj + 0x30)
+                if (vgs) {
+                    vp := ahhfuck.ReadUInt64(vgs + 0xC0)
+                    if (vp && (ftype = "bool" || ftype = "int"))
+                        current := ahhfuck.ReadInt32(vp)
+                }
+                if (current = "" && (ftype = "bool" || ftype = "int"))
+                    current := ahhfuck.ReadInt32(flagObj)
             }
         }
 
@@ -1687,8 +1848,8 @@ ExecuteReApplyBatches() {
         success := false
         if (UseSingleton.Value) {
             success := ahhfuck.SetFlag(name, desired)
-        } else if (addr) {
-            success := WriteRawMemory(addr, desired, ftype)
+        } else if (GetFlagRva(name)) {
+            success := WriteFlagByOffset(name, desired, ftype)
         }
 
         if (success) {
@@ -1735,9 +1896,11 @@ ExecuteReApplyBatches() {
 #HotIf
 
 SetTimer(MonitorRoblox, 500)
-SetTimer(FetchOffsets, -100)
 LoadUserFlags()
 LoadSettings()
+InitBuildVersionMap()
+RefreshVersionDropdown()
+SetTimer(FetchOffsets, -100)
 SwitchView("Main")
 
 
@@ -1778,8 +1941,507 @@ Shutdown(*) {
         , "Int*", 0)
 }
 
-GetCurrentRobloxVersionBranch() {
-    versionDir := EnvGet("LOCALAPPDATA") "\Roblox\Versions"
+GetProcessImagePath(pid) {
+    if (!pid)
+        return ""
+
+    ; 1) AHK built-in (most reliable)
+    try {
+        p := ProcessGetPath(pid)
+        if (p != "")
+            return p
+    }
+
+    ; 2) Prefer already-attached handle (Hyperion often blocks a second OpenProcess)
+    global RobloxPID
+    if (pid && RobloxPID = pid && ahhfuck.hProcess) {
+        p := QueryImagePathFromHandle(ahhfuck.hProcess)
+        if (p != "")
+            return p
+    }
+
+    ; 3) OpenProcess + QueryFullProcessImageNameW
+    ; PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+    h := DllCall("OpenProcess", "UInt", 0x1000, "Int", 0, "UInt", pid, "Ptr")
+    if (!h)
+        h := DllCall("OpenProcess", "UInt", 0x0410, "Int", 0, "UInt", pid, "Ptr")
+    if (h) {
+        p := QueryImagePathFromHandle(h)
+        DllCall("CloseHandle", "Ptr", h)
+        if (p != "")
+            return p
+    }
+
+    ; 4) Module snapshot (same layout as ahhfuck.GetModuleBase — known to work)
+    p := GetRobloxExePathFromModules(pid)
+    if (p != "")
+        return p
+
+    ; 5) WMI fallback
+    try {
+        for proc in ComObjGet("winmgmts:").ExecQuery("SELECT ExecutablePath FROM Win32_Process WHERE ProcessId=" pid) {
+            if (proc.ExecutablePath != "")
+                return String(proc.ExecutablePath)
+        }
+    }
+    return ""
+}
+
+QueryImagePathFromHandle(hProcess) {
+    if (!hProcess)
+        return ""
+    size := 1024
+    buf := Buffer(size * 2, 0)
+    sz := size
+    if DllCall("QueryFullProcessImageNameW", "Ptr", hProcess, "UInt", 0, "Ptr", buf, "UInt*", &sz)
+        return StrGet(buf, "UTF-16")
+
+    buf2 := Buffer(size * 2, 0)
+    n := DllCall("psapi\GetModuleFileNameExW", "Ptr", hProcess, "Ptr", 0, "Ptr", buf2, "UInt", size)
+    if (n)
+        return StrGet(buf2, "UTF-16")
+    return ""
+}
+
+GetRobloxExePathFromModules(pid) {
+    ; Use ANSI Module32* with the same struct sizes as ahhfuck.GetModuleBase (already works for attach)
+    snap := DllCall("CreateToolhelp32Snapshot", "UInt", 0x08, "UInt", pid, "Ptr")
+    if (snap = -1 || !snap)
+        return ""
+    structSize := (A_PtrSize = 8) ? 1064 : 548
+    me := Buffer(structSize, 0)
+    NumPut("UInt", structSize, me, 0)
+    path := ""
+    if DllCall("Module32First", "Ptr", snap, "Ptr", me) {
+        loop {
+            nameOff := (A_PtrSize = 8) ? 48 : 32
+            pathOff := (A_PtrSize = 8) ? 304 : 288  ; szModule[256] then szExePath
+            modName := StrGet(me.ptr + nameOff, "CP0")
+            if (modName = "RobloxPlayerBeta.exe") {
+                path := StrGet(me.ptr + pathOff, "CP0")
+                break
+            }
+            if !DllCall("Module32Next", "Ptr", snap, "Ptr", me)
+                break
+        }
+    }
+    DllCall("CloseHandle", "Ptr", snap)
+    return path
+}
+
+ExtractVersionBranchFromPath(path) {
+    if (path = "")
+        return ""
+    ; Match anywhere in path (not only trailing), supports downgraded / Bloxstrap / Fishstrap
+    if RegExMatch(path, "i)(version-[0-9a-fA-F]+)", &m)
+        return m[1]
+    return ""
+}
+
+NormalizeFileVersion(v) {
+    v := Trim(String(v))
+    if (v = "")
+        return ""
+    v := StrReplace(v, ",", ".")
+    return RegExReplace(v, "\s+", "")
+}
+
+GetExeFileVersion(path) {
+    ; Do NOT use FileGetVersion() — it rebuilds from 16-bit VS_FIXEDFILEINFO parts
+    ; and truncates real Roblox builds (7280895 → 6399). Read StringFileInfo instead.
+    if (path = "" || !FileExist(path))
+        return ""
+    try {
+        size := DllCall("version\GetFileVersionInfoSizeW", "WStr", path, "UInt*", 0, "UInt")
+        if (!size)
+            return ""
+        buf := Buffer(size, 0)
+        if !DllCall("version\GetFileVersionInfoW", "WStr", path, "UInt", 0, "UInt", size, "Ptr", buf)
+            return ""
+
+        pBlock := 0
+        blockLen := 0
+        ; Translation: first lang/codepage
+        if DllCall("version\VerQueryValueW", "Ptr", buf, "WStr", "\VarFileInfo\Translation", "Ptr*", &pBlock, "UInt*", &blockLen) && blockLen >= 4 {
+            lang := NumGet(pBlock, 0, "UShort")
+            cp := NumGet(pBlock, 2, "UShort")
+            key := Format("\StringFileInfo\{:04X}{:04X}\FileVersion", lang, cp)
+            pVal := 0
+            valLen := 0
+            if DllCall("version\VerQueryValueW", "Ptr", buf, "WStr", key, "Ptr*", &pVal, "UInt*", &valLen) && pVal {
+                return NormalizeFileVersion(StrGet(pVal, "UTF-16"))
+            }
+            key2 := Format("\StringFileInfo\{:04X}{:04X}\ProductVersion", lang, cp)
+            if DllCall("version\VerQueryValueW", "Ptr", buf, "WStr", key2, "Ptr*", &pVal, "UInt*", &valLen) && pVal {
+                return NormalizeFileVersion(StrGet(pVal, "UTF-16"))
+            }
+        }
+    } catch {
+    }
+    return ""
+}
+
+; Full detection for Attach / monitor. Returns { ver, path, build, how }
+DetectRunningRobloxVersion(pid := 0) {
+    out := { ver: "", path: "", build: "", how: "" }
+
+    if (!pid)
+        pid := ProcessExist("RobloxPlayerBeta.exe")
+    if (!pid)
+        return out
+
+    path := GetProcessImagePath(pid)
+    out.path := path
+    out.build := GetExeFileVersion(path)
+
+    ; 1) Normal install / Bloxstrap: ...\version-HASH\RobloxPlayerBeta.exe
+    ver := ExtractVersionBranchFromPath(path)
+    if (ver != "") {
+        out.ver := ver
+        out.how := "path"
+        if (out.build != "")
+            RememberBuildMapping(out.build, ver)
+        return out
+    }
+
+    ; 2) Path matches a local Versions folder
+    ver := MatchLocalVersionFolderForPid(pid, path)
+    if (ver != "") {
+        out.ver := ver
+        out.how := "local-path"
+        if (out.build != "")
+            RememberBuildMapping(out.build, ver)
+        return out
+    }
+
+    if (out.build != "") {
+        ; 3) Same FileVersion as a local Versions\version-*\RobloxPlayerBeta.exe
+        ver := MatchLocalVersionByFileVersion(out.build)
+        if (ver != "") {
+            out.ver := ver
+            out.how := "fileversion-local"
+            RememberBuildMapping(out.build, ver)
+            return out
+        }
+
+        ; 4) build_map.json (local + GitHub) — works for portable/RAR clients
+        ver := ResolveVersionFromBuildMap(out.build)
+        if (ver != "") {
+            out.ver := ver
+            out.how := "build-map"
+            return out
+        }
+
+        ; 5) Roblox DeployHistory (non-hidden hashes)
+        ver := ResolveVersionFromDeployHistory(out.build)
+        if (ver != "") {
+            out.ver := ver
+            out.how := "deploy-history"
+            RememberBuildMapping(out.build, ver)
+            return out
+        }
+
+        ; 6) Hidden DeployHistory builds → closest versions.json date
+        ver := ResolveHiddenBuildViaVersionsJson(out.build)
+        if (ver != "") {
+            out.ver := ver
+            out.how := "deploy-date"
+            RememberBuildMapping(out.build, ver)
+            return out
+        }
+    }
+
+    return out
+}
+
+GetRunningRobloxVersionBranch(pid := 0) {
+    return DetectRunningRobloxVersion(pid).ver
+}
+
+InitBuildVersionMap() {
+    global BuildVersionMap
+    BuildVersionMap := Map()
+    ; Known portable / hidden builds (Roblox marks many modern hashes as version-hidden)
+    RememberBuildMapping("0.728.0.7280895", "version-5cf2272675e145f5", false)
+    RememberBuildMapping("0.728.0.6399", "version-5cf2272675e145f5", false)  ; truncated FileGetVersion alias
+    LoadLocalBuildMap()
+    FetchRemoteBuildMap()
+    MergeDeployHistoryIntoBuildMap()
+}
+
+RememberBuildMapping(build, ver, save := true) {
+    global BuildVersionMap
+    build := NormalizeFileVersion(build)
+    ver := Trim(String(ver))
+    if (build = "" || ver = "" || !RegExMatch(ver, "i)^version-[0-9a-fA-F]+$"))
+        return
+    BuildVersionMap[build] := ver
+    if (save)
+        SaveLocalBuildMap()
+}
+
+ResolveVersionFromBuildMap(build) {
+    global BuildVersionMap
+    build := NormalizeFileVersion(build)
+    if (build = "" || !BuildVersionMap.Has(build))
+        return ""
+    return BuildVersionMap[build]
+}
+
+LoadLocalBuildMap() {
+    global AppDir, BuildVersionMap
+    f := AppDir "\build_map.json"
+    if !FileExist(f)
+        return
+    try MergeBuildMapJson(FileRead(f, "UTF-8"))
+}
+
+SaveLocalBuildMap() {
+    global AppDir, BuildVersionMap
+    s := "{"
+    first := true
+    for build, ver in BuildVersionMap {
+        if !first
+            s .= ","
+        first := false
+        s .= "`n  `" build `": `"" ver `""
+    }
+    s .= "`n}`n"
+    try FileOpen(AppDir "\build_map.json", "w", "UTF-8").Write(s)
+}
+
+FetchRemoteBuildMap() {
+    try {
+        whr := ComObject("WinHttp.WinHttpRequest.5.1")
+        whr.Open("GET", "https://raw.githubusercontent.com/AE12IA/offsets/main/build_map.json", false)
+        whr.SetTimeouts(3000, 3000, 8000, 8000)
+        whr.Send()
+        if (whr.Status = 200)
+            MergeBuildMapJson(whr.ResponseText)
+    }
+}
+
+MergeBuildMapJson(text) {
+    global BuildVersionMap
+    if (text = "")
+        return
+    pos := 1
+    while (pos := RegExMatch(text, '"([^"]+)"\s*:\s*"(version-[^"]+)"', &m, pos)) {
+        RememberBuildMapping(m[1], m[2], false)
+        pos += m.Len
+    }
+}
+
+MergeDeployHistoryIntoBuildMap() {
+    text := GetDeployHistoryText()
+    if (text = "")
+        return
+    pos := 1
+    while (pos := RegExMatch(text, "i)WindowsPlayer\s+(version-[0-9a-fA-F]+)\s+at.*?file version:\s*([0-9,\s]+)", &m, pos)) {
+        RememberBuildMapping(m[2], m[1], false)
+        pos += m.Len
+    }
+    SaveLocalBuildMap()
+}
+
+ResolveHiddenBuildViaVersionsJson(build) {
+    build := NormalizeFileVersion(build)
+    if (build = "")
+        return ""
+
+    text := GetDeployHistoryText()
+    if (text = "")
+        return ""
+
+    ; Find deploy timestamp for this FileVersion (even if hash is version-hidden)
+    deployStamp := ""
+    pos := 1
+    while (pos := RegExMatch(text, "i)WindowsPlayer\s+(?:version-[0-9a-fA-F]+|version-hidden)\s+at\s+([^,]+),\s+file version:\s*([0-9,\s]+)", &m, pos)) {
+        fv := NormalizeFileVersion(m[2])
+        pos += m.Len
+        if (fv = build) {
+            deployStamp := ParseDeployHistoryDate(m[1])
+            break
+        }
+    }
+    if (deployStamp = "")
+        return ""
+
+    ; Pick GitHub versions.json entry closest in time
+    bestVer := ""
+    bestDiff := 0
+    for item in FetchGithubVersionEntries() {
+        if (item.stamp = "")
+            continue
+        diff := Abs(DateDiff(deployStamp, item.stamp, "Hours"))
+        if (bestVer = "" || diff < bestDiff) {
+            bestVer := item.ver
+            bestDiff := diff
+        }
+    }
+    ; Only accept if within ~3 days
+    if (bestVer != "" && bestDiff <= 72)
+        return bestVer
+    return ""
+}
+
+ParseDeployHistoryDate(s) {
+    ; e.g. "6/30/2026 10:55:46 AM"
+    s := Trim(s)
+    if !RegExMatch(s, "i)^(\d{1,2})/(\d{1,2})/(\d{4})\s+(\d{1,2}):(\d{2}):(\d{2})\s*(AM|PM)?", &m)
+        return ""
+    month := Format("{:02}", Integer(m[1]))
+    day := Format("{:02}", Integer(m[2]))
+    year := m[3]
+    hour := Integer(m[4])
+    minute := m[5]
+    second := m[6]
+    ampm := StrUpper(m[7])
+    if (ampm = "PM" && hour < 12)
+        hour += 12
+    if (ampm = "AM" && hour = 12)
+        hour := 0
+    return year month day Format("{:02}", hour) minute second
+}
+
+FetchGithubVersionEntries() {
+    entries := []
+    try {
+        whr := ComObject("WinHttp.WinHttpRequest.5.1")
+        whr.Open("GET", "https://raw.githubusercontent.com/AE12IA/offsets/main/versions.json", false)
+        whr.SetTimeouts(5000, 5000, 10000, 10000)
+        whr.Send()
+        if (whr.Status != 200)
+            return entries
+        text := whr.ResponseText
+        pos := 1
+        while (pos := RegExMatch(text, '"version"\s*:\s*"(version-[^"]+)"\s*,\s*"date"\s*:\s*"([^"]+)"', &m, pos)) {
+            stamp := ParseIsoDateToStamp(m[2])
+            entries.Push({ ver: m[1], stamp: stamp })
+            pos += m.Len
+        }
+    }
+    return entries
+}
+
+ParseIsoDateToStamp(iso) {
+    ; 2026-06-30T20:34:00.277Z
+    if !RegExMatch(iso, "^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})", &m)
+        return ""
+    return m[1] m[2] m[3] m[4] m[5] m[6]
+}
+
+MatchLocalVersionFolderForPid(pid, knownPath := "") {
+    versionDir := GetRobloxVersionsDir()
+    if !DirExist(versionDir)
+        return ""
+
+    if (knownPath != "") {
+        Loop Files, versionDir "\version-*", "D" {
+            exe := A_LoopFileFullPath "\RobloxPlayerBeta.exe"
+            if !FileExist(exe)
+                continue
+            if (StrLower(exe) = StrLower(knownPath))
+                return A_LoopFileName
+        }
+    }
+
+    try {
+        live := ProcessGetPath(pid)
+        if (live != "") {
+            Loop Files, versionDir "\version-*", "D" {
+                exe := A_LoopFileFullPath "\RobloxPlayerBeta.exe"
+                if (FileExist(exe) && StrLower(exe) = StrLower(live))
+                    return A_LoopFileName
+            }
+        }
+    }
+    return ""
+}
+
+MatchLocalVersionByFileVersion(build) {
+    build := NormalizeFileVersion(build)
+    if (build = "")
+        return ""
+    versionDir := GetRobloxVersionsDir()
+    if !DirExist(versionDir)
+        return ""
+    Loop Files, versionDir "\version-*", "D" {
+        exe := A_LoopFileFullPath "\RobloxPlayerBeta.exe"
+        if !FileExist(exe)
+            continue
+        if (GetExeFileVersion(exe) = build)
+            return A_LoopFileName
+    }
+    return ""
+}
+
+ResolveVersionFromDeployHistory(build) {
+    build := NormalizeFileVersion(build)
+    if (build = "")
+        return ""
+
+    text := GetDeployHistoryText()
+    if (text = "")
+        return ""
+
+    ; Example: New WindowsPlayer version-abc... at ..., file version: 0, 728, 0, 7280895, ...
+    pos := 1
+    while (pos := RegExMatch(text, "i)WindowsPlayer\s+(version-[0-9a-fA-F]+|version-hidden)\s+at.*?file version:\s*([0-9,\s]+)", &m, pos)) {
+        cand := m[1]
+        fv := NormalizeFileVersion(m[2])
+        pos += m.Len
+        if (fv != build)
+            continue
+        if (InStr(cand, "hidden"))
+            continue  ; Roblox hides some hashes — can't map from history
+        return cand
+    }
+    return ""
+}
+
+GetDeployHistoryText() {
+    global AppDir
+    cache := AppDir "\deploy_history_cache.txt"
+    ; Refresh at most once per day
+    if FileExist(cache) {
+        try {
+            ageHours := DateDiff(A_Now, FileGetTime(cache, "M"), "Hours")
+            if (ageHours >= 0 && ageHours < 24) {
+                return FileRead(cache, "UTF-8")
+            }
+        } catch {
+        }
+    }
+    try {
+        whr := ComObject("WinHttp.WinHttpRequest.5.1")
+        whr.Open("GET", "https://setup.rbxcdn.com/DeployHistory.txt", false)
+        whr.SetTimeouts(3000, 3000, 15000, 15000)
+        whr.Send()
+        if (whr.Status != 200)
+            return FileExist(cache) ? FileRead(cache, "UTF-8") : ""
+        text := whr.ResponseText
+        try FileOpen(cache, "w", "UTF-8").Write(text)
+        return text
+    } catch {
+        return FileExist(cache) ? FileRead(cache, "UTF-8") : ""
+    }
+}
+
+ResolveRobloxVersionBranch() {
+    global SelectedVersionOverride
+    if (SelectedVersionOverride != "")
+        return SelectedVersionOverride
+
+    running := GetRunningRobloxVersionBranch()
+    if (running != "")
+        return running
+
+    return GetNewestLocalRobloxVersionBranch()
+}
+
+GetNewestLocalRobloxVersionBranch() {
+    versionDir := GetRobloxVersionsDir()
     chosen := ""
     newest := ""
 
@@ -1795,5 +2457,211 @@ GetCurrentRobloxVersionBranch() {
         }
     }
 
-    return chosen 
+    return chosen
+}
+
+GetCurrentRobloxVersionBranch() {
+    return ResolveRobloxVersionBranch()
+}
+
+OnVersionSearchChanged(*) {
+    FilterVersionList(VersionSearch.Value)
+}
+
+OnVersionListChanged(*) {
+    ; Single click selects and loads immediately
+    ApplySelectedVersionFromList()
+}
+
+OnVersionReloadClicked(*) {
+    ; Reload button: refresh full catalog, keep search filter
+    global SelectedVersionOverride
+    q := ""
+    try q := VersionSearch.Value
+    RefreshVersionDropdown(q)
+    ApplySelectedVersionFromList()
+}
+
+ApplySelectedVersionFromList() {
+    global SelectedVersionOverride, VersionChoices, SuppressVersionListEvent
+    if (SuppressVersionListEvent)
+        return
+
+    idx := VersionList.Value
+    if (idx <= 0)
+        return
+
+    if (idx <= 1) {
+        SelectedVersionOverride := ""
+        SaveSettings()
+        FetchOffsets()
+        return
+    }
+
+    if (idx - 1 > VersionChoices.Length)
+        return
+
+    SelectedVersionOverride := VersionChoices[idx - 1]
+    SaveSettings()
+    ; If a portable Roblox is running, learn FileVersion → this version for future Attach
+    try {
+        pid := ProcessExist("RobloxPlayerBeta.exe")
+        if (pid) {
+            p := GetProcessImagePath(pid)
+            b := GetExeFileVersion(p)
+            if (b != "" && ExtractVersionBranchFromPath(p) = "")
+                RememberBuildMapping(b, SelectedVersionOverride)
+        }
+    }
+    AddLog("System", "Versions", "Selected " SelectedVersionOverride)
+    FetchOffsets(SelectedVersionOverride)
+}
+
+FilterVersionList(filter := "") {
+    global AllVersionChoices, VersionChoices, SelectedVersionOverride, SuppressVersionListEvent
+
+    filter := Trim(String(filter))
+    VersionChoices := []
+    if (filter = "") {
+        for v in AllVersionChoices
+            VersionChoices.Push(v)
+    } else {
+        for v in AllVersionChoices {
+            if InStr(v, filter, false)
+                VersionChoices.Push(v)
+        }
+    }
+
+    pipe := "Auto (running / newest local)"
+    for v in VersionChoices
+        pipe .= "|" v
+
+    SuppressVersionListEvent := true
+    try {
+        VersionList.Delete()
+        VersionList.Add(StrSplit(pipe, "|"))
+    } catch {
+        try VersionList.Delete()
+        try VersionList.Add(["Auto (running / newest local)"])
+        for v in VersionChoices
+            try VersionList.Add([v])
+    }
+
+    choose := 1
+    if (SelectedVersionOverride != "") {
+        for i, v in VersionChoices {
+            if (v = SelectedVersionOverride) {
+                choose := i + 1
+                break
+            }
+        }
+    }
+    try VersionList.Choose(choose)
+    SuppressVersionListEvent := false
+}
+
+RefreshVersionDropdown(keepFilter := "") {
+    global SelectedVersionOverride, AllVersionChoices, VersionChoices, AppDir, SuppressVersionListEvent
+
+    localList := ListLocalRobloxVersions()
+    ghList := FetchGithubVersionNames()
+
+    seen := Map()
+    AllVersionChoices := []
+    for v in localList {
+        if (v = "")
+            continue
+        if !seen.Has(v) {
+            seen[v] := 1
+            AllVersionChoices.Push(v)
+        }
+    }
+    for v in ghList {
+        if (v = "")
+            continue
+        if !seen.Has(v) {
+            seen[v] := 1
+            AllVersionChoices.Push(v)
+        }
+    }
+
+    filter := keepFilter
+    if (filter = "") {
+        try filter := VersionSearch.Value
+    }
+
+    FilterVersionList(filter)
+
+    dbg := "local=" localList.Length " github=" ghList.Length " merged=" AllVersionChoices.Length "`n"
+    dbg .= "LOCALAPPDATA=" EnvGet("LOCALAPPDATA") "`n"
+    dbg .= "VersionsDir=" GetRobloxVersionsDir() "`n"
+    for v in AllVersionChoices
+        dbg .= v "`n"
+    try FileOpen(AppDir "\version_picker_debug.txt", "w", "UTF-8").Write(dbg)
+
+    try AddLog("System", "Versions", "ListBox filled: " AllVersionChoices.Length " (local " localList.Length ", github " ghList.Length ")")
+}
+
+GetRobloxVersionsDir() {
+    d := EnvGet("LOCALAPPDATA") "\Roblox\Versions"
+    if DirExist(d)
+        return d
+    d2 := EnvGet("USERPROFILE") "\AppData\Local\Roblox\Versions"
+    if DirExist(d2)
+        return d2
+    return d
+}
+
+ListLocalRobloxVersions() {
+    versionDir := GetRobloxVersionsDir()
+    list := []
+    if !DirExist(versionDir)
+        return list
+
+    Loop Files, versionDir "\*", "D" {
+        name := A_LoopFileName
+        if !RegExMatch(name, "i)^version-[0-9a-fA-F]+$")
+            continue
+        list.Push({ name: name, time: A_LoopFileTimeModified })
+    }
+
+    if (list.Length = 0)
+        return []
+    if (list.Length = 1)
+        return [list[1].name]
+
+    loop list.Length {
+        i := A_Index
+        loop list.Length - i {
+            j := i + A_Index
+            if (list[j].time > list[i].time) {
+                tmp := list[i]
+                list[i] := list[j]
+                list[j] := tmp
+            }
+        }
+    }
+    out := []
+    for item in list
+        out.Push(item.name)
+    return out
+}
+
+FetchGithubVersionNames() {
+    names := []
+    try {
+        whr := ComObject("WinHttp.WinHttpRequest.5.1")
+        whr.Open("GET", "https://raw.githubusercontent.com/AE12IA/offsets/main/versions.json", false)
+        whr.SetTimeouts(5000, 5000, 10000, 10000)
+        whr.Send()
+        if (whr.Status != 200)
+            return names
+        text := whr.ResponseText
+        pos := 1
+        while (pos := RegExMatch(text, '"version"\s*:\s*"(version-[^"]+)"', &m, pos)) {
+            names.Push(m[1])
+            pos += m.Len
+        }
+    }
+    return names
 }
