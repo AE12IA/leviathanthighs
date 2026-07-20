@@ -812,13 +812,42 @@ body.landing .btn {
   top: calc(100% + 0.4rem);
   left: 0;
   right: 0;
-  max-height: 280px;
-  overflow: auto;
+  max-height: 320px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
   padding: 0.35rem;
   border: 1px solid #2f2f2f;
   border-radius: 10px;
   background: #0d0d0d;
   box-shadow: 0 18px 40px rgba(0, 0, 0, 0.55);
+}
+
+.version-menu-search {
+  padding: 0.25rem 0.25rem 0.4rem;
+  border-bottom: 1px solid #1f1f1f;
+  margin-bottom: 0.25rem;
+}
+
+.version-menu-search input {
+  width: 100%;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid #2a2a2a;
+  border-radius: 7px;
+  background: #111;
+  color: var(--text);
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 0.78rem;
+}
+
+.version-menu-search input:focus {
+  outline: none;
+  border-color: #4a4a4a;
+}
+
+.version-menu-list {
+  overflow: auto;
+  max-height: 250px;
 }
 
 .version-option {
@@ -883,6 +912,18 @@ body.landing .btn {
   font-size: 0.68rem;
   color: #7a9a74;
   margin-top: 0.15rem;
+}
+
+.vo-kind {
+  display: inline-block;
+  margin-left: 0.45rem;
+  padding: 0.05rem 0.35rem;
+  border-radius: 4px;
+  background: #2a2218;
+  color: #c9a56a;
+  font-size: 0.62rem;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
 }
 
 .version-empty {
