@@ -1025,11 +1025,18 @@ body.landing .btn {
 }
 
 .code-panel-dl {
-  margin-left: auto;
   color: #8fd67c;
   text-decoration: none;
   font-family: "IBM Plex Mono", ui-monospace, monospace;
   font-size: 0.72rem;
+  white-space: nowrap;
+}
+
+.code-panel-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
 }
 
 .code-panel-dl:hover {

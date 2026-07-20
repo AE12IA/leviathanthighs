@@ -4,6 +4,7 @@
     "https://raw.githubusercontent.com/" + REPO + "/main/versions.json";
   const BUILD_MAP_URL =
     "https://raw.githubusercontent.com/" + REPO + "/main/build_map.json";
+  const RDD_BASE = "https://rdd.latte.to/";
   const HPP = (branch) =>
     "https://raw.githubusercontent.com/" +
     REPO +
@@ -43,6 +44,7 @@
   const body = document.getElementById("offsets-body");
   const panelTitle = document.getElementById("code-panel-title");
   const downloadLink = document.getElementById("hpp-download");
+  const clientDownloadLink = document.getElementById("client-download");
   const versionsData = document.getElementById("versions-data");
 
   let versions = [];
@@ -145,6 +147,27 @@
       if (versions[i].version === branch) return versions[i];
     }
     return null;
+  }
+
+  function rddUrl(version) {
+    if (!version || !/^version-/i.test(version)) return "";
+    return (
+      RDD_BASE +
+      "?binaryType=WindowsPlayer&channel=LIVE&version=" +
+      encodeURIComponent(version)
+    );
+  }
+
+  function setClientDownload(version) {
+    if (!clientDownloadLink) return;
+    const url = rddUrl(version);
+    if (!url) {
+      clientDownloadLink.hidden = true;
+      clientDownloadLink.removeAttribute("href");
+      return;
+    }
+    clientDownloadLink.href = url;
+    clientDownloadLink.hidden = false;
   }
 
   function displayLabel(item) {
@@ -296,6 +319,7 @@
     const item = findVersion(branch);
     if (valueEl) valueEl.textContent = displayLabel(item) || branch || "Select a version…";
     if (panelTitle) panelTitle.textContent = branch ? branch + "/offsets.hpp" : "offsets.hpp";
+    setClientDownload(branch);
     renderMenu();
     setOpen(false);
     if (branch) loadVersion(branch);
@@ -371,6 +395,7 @@
       search.disabled = true;
     }
     if (downloadLink) downloadLink.hidden = true;
+    setClientDownload("");
     showEmpty("Loading offsets.hpp…");
     setMeta("Loading " + branch + "…");
 
