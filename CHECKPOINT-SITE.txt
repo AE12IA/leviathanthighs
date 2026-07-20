@@ -1,0 +1,22 @@
+RESTORE POINT — say "revert" to undo the site docs update (Jul 2026)
+
+Added:
+  guide.html
+  changelog.html
+  CHECKPOINT-SITE.txt
+  offsets-repo/build_map.json (GitHub)
+
+Modified:
+  downloads.html
+  index.html
+  styles.css
+
+To restore:
+  1. Copy *.checkpoint-site-docs back over originals (remove .checkpoint-site-docs suffix)
+  2. Delete guide.html, changelog.html, this file
+  3. Revert build_map.json on AE12IA/offsets if pushed
+
+Checkpoint files:
+  downloads.html.checkpoint-site-docs
+  index.html.checkpoint-site-docs
+  styles.css.checkpoint-site-docs

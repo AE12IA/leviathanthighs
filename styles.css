@@ -416,6 +416,7 @@ body.landing .btn {
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
+  flex-wrap: wrap;
 }
 
 .tool-badge {
@@ -566,6 +567,136 @@ body.landing .btn {
 .lede code {
   font-family: "IBM Plex Mono", ui-monospace, monospace;
   font-size: 0.84em;
+}
+
+.lede a {
+  color: var(--text);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.lede a:hover {
+  color: #ccc;
+}
+
+/* —— Docs (guide / changelog) —— */
+.doc-content {
+  width: min(640px, calc(100% - 2rem));
+  padding-bottom: 3rem;
+}
+
+.doc-list {
+  margin: 0;
+  padding-left: 1.2rem;
+  color: #ccc;
+  line-height: 1.55;
+  font-size: 0.95rem;
+}
+
+.doc-list li + li {
+  margin-top: 0.45rem;
+}
+
+.doc-list a {
+  color: var(--text);
+}
+
+.steps {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 1.1rem;
+}
+
+.steps li {
+  padding: 1rem 1.1rem;
+  border: 1px solid #2a2a2a;
+  background: #0d0d0d;
+}
+
+.steps li strong {
+  display: block;
+  margin-bottom: 0.35rem;
+  font-size: 0.95rem;
+}
+
+.steps li p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.doc-note {
+  margin: 0;
+  padding: 0.85rem 1rem;
+  border: 1px solid #2a2a2a;
+  background: #0d0d0d;
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.doc-links {
+  margin-top: 2rem;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.doc-links a {
+  color: var(--text);
+}
+
+.changelog-entry {
+  margin-bottom: 1.75rem;
+  padding-bottom: 1.75rem;
+  border-bottom: 1px solid #222;
+}
+
+.changelog-entry:last-of-type {
+  border-bottom: none;
+}
+
+.changelog-entry header {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  margin-bottom: 0.75rem;
+}
+
+.changelog-entry time {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.changelog-tag {
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 0.2rem 0.45rem;
+  border: 1px solid #333;
+  color: var(--muted);
+}
+
+.changelog-entry ul {
+  margin: 0;
+  padding-left: 1.2rem;
+  color: #ccc;
+  line-height: 1.55;
+  font-size: 0.92rem;
+}
+
+.changelog-entry li + li {
+  margin-top: 0.4rem;
+}
+
+.tool-badge--new {
+  border-color: #3d5a34;
+  color: #9fd88a;
+  background: rgba(143, 214, 124, 0.08);
 }
 
 /* —— Offsets browser —— */

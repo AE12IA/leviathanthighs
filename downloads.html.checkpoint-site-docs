@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- deploy-version: tools-gallery-v8 -->
+<!-- deploy-version: tools-gallery-v7 -->
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=13" />
+  <link rel="stylesheet" href="styles.css?v=7" />
 </head>
 <body class="page downloads-page">
   <div class="page-glow" aria-hidden="true"></div>
@@ -20,7 +20,7 @@
   <main class="content tools-content">
     <header class="tools-hero">
       <h1>Downloads</h1>
-      <p class="lede">Click to download — counts stay once per PC. New to FFlag? Read the <a href="guide.html">quick start guide</a> or <a href="changelog.html">what's new</a>.</p>
+      <p class="lede">Click to download — counts stay once per PC.</p>
     </header>
 
     <section class="tool-grid" aria-label="Tools">
@@ -38,11 +38,10 @@
         <div class="tool-info">
           <div class="tool-top">
             <span class="tool-badge">AutoHotkey</span>
-            <span class="tool-badge tool-badge--new">Updated Jul 2026</span>
             <span class="tool-file">fflag.ahk</span>
           </div>
           <h2>FFlag</h2>
-          <p>Roblox FFlag injector with <strong>Attach</strong> (auto-detects your client version), version search in Settings, and 30-day login. Just the .ahk — no extra files.</p>
+          <p>Manage and change your FFlag injector on a roblox client.</p>
           <div class="tool-foot">
             <span class="dl-meta"><span class="dl-count" data-count-for="fflag-ahk">…</span> downloads</span>
             <span class="tool-cta">Download <span aria-hidden="true">↓</span></span>
@@ -77,6 +76,6 @@
     </section>
   </main>
 
-  <script src="download-counts.js?v=8"></script>
+  <script src="download-counts.js?v=7"></script>
 </body>
 </html>

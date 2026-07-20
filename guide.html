@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>FFlag Guide — Leviathan</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css?v=13" />
+</head>
+<body class="page">
+  <header class="bar">
+    <a class="back" href="index.html">← Leviathan</a>
+  </header>
+
+  <main class="content doc-content">
+    <h1>FFlag quick start</h1>
+    <p class="lede">Everything you need to run <code>fflag.ahk</code> — no extra files required.</p>
+
+    <section>
+      <h2>Before you start</h2>
+      <ul class="doc-list">
+        <li>Install <strong>AutoHotkey v2</strong> from <a href="https://www.autohotkey.com/" rel="noopener noreferrer">autohotkey.com</a></li>
+        <li>Download <a href="downloads/tools/fflag.ahk" download="fflag.ahk">fflag.ahk</a> from this site</li>
+        <li>Create an account on the <a href="register.html">Register</a> page (login inside the tool)</li>
+        <li>Internet connection (offsets load from GitHub)</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Steps</h2>
+      <ol class="steps">
+        <li>
+          <strong>Run as admin</strong>
+          <p>Right-click <code>fflag.ahk</code> → Run as administrator. The script will ask for elevation if you double-click it.</p>
+        </li>
+        <li>
+          <strong>Log in</strong>
+          <p>Use your Leviathan account. You stay signed in for <strong>30 days</strong>, then log in again.</p>
+        </li>
+        <li>
+          <strong>Join Roblox</strong>
+          <p>Launch a game with the normal client, Bloxstrap, or Fishstrap.</p>
+        </li>
+        <li>
+          <strong>Press Attach</strong>
+          <p>The tool reads your running <code>RobloxPlayerBeta.exe</code>, picks the matching offset version, and loads flags from GitHub automatically.</p>
+        </li>
+        <li>
+          <strong>Add flags &amp; Apply</strong>
+          <p>Add or import FFlags, then click <strong>Apply to Roblox</strong>. Use <strong>Save Flags</strong> to keep your list.</p>
+        </li>
+      </ol>
+    </section>
+
+    <section>
+      <h2>Settings (gear icon)</h2>
+      <ul class="doc-list">
+        <li><strong>Version search</strong> — type part of a version hash (e.g. <code>5cf227</code>) to filter the list</li>
+        <li><strong>Click a version</strong> — loads offsets for that branch manually</li>
+        <li><strong>Auto</strong> — uses the running client when Attach is used</li>
+        <li><strong>Reload</strong> — refreshes the version list from GitHub + local installs</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Portable / RAR Roblox</h2>
+      <p class="doc-note">If Roblox runs from a temp folder (no <code>version-…</code> in the path), Attach uses the exe build number and our <code>build_map.json</code> on GitHub to find the right offsets.</p>
+    </section>
+
+    <p class="doc-links">
+      <a href="downloads.html">← Downloads</a>
+      ·
+      <a href="changelog.html">What's new</a>
+      ·
+      <a href="offsets.html">Offsets browser</a>
+    </p>
+  </main>
+</body>
+</html>
