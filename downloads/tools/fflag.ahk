@@ -1737,7 +1737,7 @@ FetchOffsets(forceVersion := "") {
     try {
         whr := ComObject("WinHttp.WinHttpRequest.5.1")
         
-        whr.Open("GET", "https://raw.githubusercontent.com/AE12IA/offsets/main/prefixes.json", true)
+        whr.Open("GET", "https://raw.githubusercontent.com/AE12IA/offsets/fflag_offset/prefixes.json", true)
         whr.Send()
         whr.WaitForResponse()
         if (whr.Status == 200) {
@@ -1759,7 +1759,7 @@ FetchOffsets(forceVersion := "") {
     		return
 	}
 
-	offsetsUrl := "https://raw.githubusercontent.com/AE12IA/offsets/" versionBranch "/offsets.hpp"
+	offsetsUrl := "https://raw.githubusercontent.com/AE12IA/offsets/fflag_offset/" versionBranch "/offsets.hpp"
         whr.Open("GET", offsetsUrl, true)
         whr.Send()
         whr.WaitForResponse()
@@ -2339,7 +2339,7 @@ SaveLocalBuildMap() {
 FetchRemoteBuildMap() {
     try {
         whr := ComObject("WinHttp.WinHttpRequest.5.1")
-        whr.Open("GET", "https://raw.githubusercontent.com/AE12IA/offsets/main/build_map.json", false)
+        whr.Open("GET", "https://raw.githubusercontent.com/AE12IA/offsets/fflag_offset/build_map.json", false)
         whr.SetTimeouts(3000, 3000, 8000, 8000)
         whr.Send()
         if (whr.Status = 200)
@@ -2434,7 +2434,7 @@ FetchGithubVersionEntries() {
     entries := []
     try {
         whr := ComObject("WinHttp.WinHttpRequest.5.1")
-        whr.Open("GET", "https://raw.githubusercontent.com/AE12IA/offsets/main/versions.json", false)
+        whr.Open("GET", "https://raw.githubusercontent.com/AE12IA/offsets/fflag_offset/versions.json", false)
         whr.SetTimeouts(5000, 5000, 10000, 10000)
         whr.Send()
         if (whr.Status != 200)
@@ -2777,7 +2777,7 @@ FetchGithubVersionNames() {
     names := []
     try {
         whr := ComObject("WinHttp.WinHttpRequest.5.1")
-        whr.Open("GET", "https://raw.githubusercontent.com/AE12IA/offsets/main/versions.json", false)
+        whr.Open("GET", "https://raw.githubusercontent.com/AE12IA/offsets/fflag_offset/versions.json", false)
         whr.SetTimeouts(5000, 5000, 10000, 10000)
         whr.Send()
         if (whr.Status != 200)

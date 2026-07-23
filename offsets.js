@@ -1,15 +1,19 @@
 (() => {
   const REPO = "AE12IA/offsets";
+  const INDEX_BRANCH = "fflag_offset";
   const VERSIONS_URL =
-    "https://raw.githubusercontent.com/" + REPO + "/main/versions.json";
+    "https://raw.githubusercontent.com/" + REPO + "/" + INDEX_BRANCH + "/versions.json";
   const BUILD_MAP_URL =
-    "https://raw.githubusercontent.com/" + REPO + "/main/build_map.json";
+    "https://raw.githubusercontent.com/" + REPO + "/" + INDEX_BRANCH + "/build_map.json";
   const RDD_BASE = "https://rdd.latte.to/";
-  const HPP = (branch) =>
+  // New layout: fflag_offset/version-*/offsets.hpp (old clients still hit version-* branch root)
+  const HPP = (version) =>
     "https://raw.githubusercontent.com/" +
     REPO +
     "/" +
-    encodeURIComponent(branch) +
+    INDEX_BRANCH +
+    "/" +
+    encodeURIComponent(version) +
     "/offsets.hpp";
 
   const FALLBACK = [
