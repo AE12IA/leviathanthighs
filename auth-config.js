@@ -1,6 +1,6 @@
-// Auth API — Cloudflare Worker
+// Auth API — Cloudflare Worker (accounts in private AE12IA/leviathan-auth)
 window.LEVIATHAN_AUTH = {
   apiUrl: "https://gentle-mouse-f361.fnaf22foxy.workers.dev",
   githubToken: "",
-  usersUrl: "https://raw.githubusercontent.com/AE12IA/leviathanthighs/main/auth/users.json"
+  usersUrl: "" // private repo — register/login only via Worker apiUrl
 };

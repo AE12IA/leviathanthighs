@@ -8,18 +8,22 @@
  *   POST /check     — hwid (+ optional username) ban/session gate for auto-login
  *
  * Ban someone:
- *   1. Edit auth/bans.json on GitHub:
+ *   1. Edit bans.json in AE12IA/leviathan-auth:
  *        "hwids": ["<sha256 hwid>"],
  *        "usernames": ["baduser"]
- *   2. Or set "banned": true on their entry in auth/users.json
+ *   2. Or set "banned": true on their entry in users.json
  *   3. Redeploy is NOT needed — Worker reads GitHub live
  *
- * Setup: see auth/README.md
+ * Cloudflare vars (recommended):
+ *   GITHUB_REPO=AE12IA/leviathan-auth
+ *   GITHUB_PATH=users.json
+ *   GITHUB_BANS_PATH=bans.json
+ *   GITHUB_TOKEN=PAT with Contents R/W on leviathan-auth
  */
 
-const DEFAULT_REPO = "AE12IA/leviathanthighs";
-const DEFAULT_USERS_PATH = "auth/users.json";
-const DEFAULT_BANS_PATH = "auth/bans.json";
+const DEFAULT_REPO = "AE12IA/leviathan-auth";
+const DEFAULT_USERS_PATH = "users.json";
+const DEFAULT_BANS_PATH = "bans.json";
 
 export default {
   async fetch(request, env) {

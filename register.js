@@ -2,8 +2,8 @@
   const form = document.getElementById("register-form");
   const msg = document.getElementById("reg-msg");
   const cfg = window.LEVIATHAN_AUTH || {};
-  const REPO = "AE12IA/leviathanthighs";
-  const PATH = "auth/users.json";
+  const REPO = "AE12IA/leviathan-auth";
+  const PATH = "users.json";
 
   function setMsg(text, ok) {
     msg.textContent = text;
