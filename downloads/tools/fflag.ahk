@@ -1,4 +1,4 @@
-﻿#Requires AutoHotkey v2.0
+#Requires AutoHotkey v2.0
 #SingleInstance Force
 
 ListLines(false)
@@ -61,6 +61,9 @@ AUTH_SALT      := "leviathan-auth-v1"
 AuthSessionFile := AppDir "\auth_session.json"
 
 RequireLogin()
+
+; Re-check bans while FFlag is open (every 3 minutes)
+SetTimer(PeriodicBanCheck, 180000)
 
 
 WIN_W  := 1080
@@ -325,12 +328,11 @@ MyGui.Add("Text", opt, "")
 
 
 opt := "x" CX " y0 w" CW " h" TB_H " Background" C_TB
-MyGui.Add("Text", opt, "")
+TitleBarBg := MyGui.Add("Text", opt, "")
 
 MyGui.SetFont("s15 Bold c" C_BLU, "Segoe UI")
-opt := "x" (CX + 16) " y13 w260 h28 BackgroundTrans"
+opt := "x" (CX + 16) " y13 w260 h28 Background" C_TB
 TTxt := MyGui.Add("Text", opt, "FFlags Editor")
-TTxt.OnEvent("Click", (*) => PostMessage(0xA1, 2,,, "A"))
 
 
 TBY := 13
@@ -369,6 +371,9 @@ opt := "x" (WIN_W - 40) " y" 13 " w28 h28 Center BackgroundTrans"
 CloseBtn := MyGui.Add("Text", opt, "X")
 CloseBtn.OnEvent("Click", (*) => ExitApp())
 MyGui.OnEvent("Close", (*) => ExitApp())
+
+; Drag borderless window from the top bar (not from buttons)
+OnMessage(0x0201, OnTitleBarDrag)  ; WM_LBUTTONDOWN
 
 opt := "x" CX " y" TB_H " w" CW " h1 Background" C_SEP
 MyGui.Add("Text", opt, "")
@@ -561,17 +566,127 @@ SaveBtn.OnEvent("Click", (*) => (SaveUserFlags(), SetStatus("Flags saved!", "0x4
 
 MyGui.Show("w" WIN_W " h" WIN_H)
 
+; ---- Borderless window drag (title bar) ----
+OnTitleBarDrag(wParam, lParam, msg, hwnd) {
+    global MyGui, TB_H, SB_W, WIN_W
+    global MinBtn, CloseBtn, AddBtn, RemBtn, RemAllBtn, DataBaseBtn, ImportBtn, ExportBtn
+    global SideMain, SideLogs, SideSet
+
+    ; Ignore clicks on interactive controls
+    for ctrl in [MinBtn, CloseBtn, AddBtn, RemBtn, RemAllBtn, DataBaseBtn, ImportBtn, ExportBtn, SideMain, SideLogs, SideSet] {
+        try {
+            if (hwnd = ctrl.Hwnd)
+                return
+        }
+    }
+
+    ; Must belong to our GUI
+    if (hwnd != MyGui.Hwnd && !DllCall("IsChild", "Ptr", MyGui.Hwnd, "Ptr", hwnd))
+        return
+
+    ; Client Y must be inside the title bar
+    CoordMode("Mouse", "Client")
+    MouseGetPos(&mx, &my)
+    if (my < 0 || my >= TB_H || mx < 0 || mx >= WIN_W)
+        return
+
+    ; Native caption drag
+    DllCall("user32\ReleaseCapture")
+    PostMessage(0xA1, 2, 0, , "ahk_id " MyGui.Hwnd)
+}
+
 
 ; ===================== AUTH / LOGIN =====================
 RequireLogin() {
     global AuthSessionFile
-    if (HasValidSession())
-        return
+    if (HasValidSession()) {
+        try {
+            EnforceBanOrThrow(true)
+            return
+        } catch as e {
+            ClearSession()
+            MsgBox("An error has occurred.", "Error", "IconX")
+            ExitApp()
+        }
+    }
 
     result := ShowLoginDialog()
     if (result = "ok")
         return
     ExitApp()
+}
+
+; softOffline=true → if auth API is unreachable, allow (don't kick)
+EnforceBanOrThrow(softOffline := true) {
+    global AUTH_API_URL, AuthSessionFile
+    if (AUTH_API_URL = "") {
+        if (softOffline)
+            return
+        throw Error("An error has occurred.")
+    }
+
+    hwid := GetHardwareId()
+    if (hwid = "") {
+        if (softOffline)
+            return
+        throw Error("An error has occurred.")
+    }
+
+    username := GetSessionUsername()
+    body := '{"hwid":"' EscapeJson(hwid) '"'
+    if (username != "")
+        body .= ',"username":"' EscapeJson(username) '"'
+    body .= "}"
+
+    try {
+        resp := HttpRequest("POST", RTrim(AUTH_API_URL, "/") "/check", body, "application/json")
+    } catch {
+        if (softOffline)
+            return
+        throw Error("An error has occurred.")
+    }
+
+    if (InStr(resp, '"ok":true') || InStr(resp, '"ok": true'))
+        return
+    if (InStr(resp, "hardware banned") || InStr(resp, "Hardware banned")
+        || InStr(resp, "account is banned")
+        || InStr(resp, '"banned":true') || InStr(resp, '"banned": true'))
+        throw Error("An error has occurred.")
+    if (softOffline && (resp = "" || !InStr(resp, "{")))
+        return
+    if (softOffline)
+        return
+    throw Error("An error has occurred.")
+}
+
+PeriodicBanCheck(*) {
+    try {
+        EnforceBanOrThrow(true)
+    } catch {
+        ClearSession()
+        MsgBox("An error has occurred.", "Error", "IconX")
+        ExitApp()
+    }
+}
+
+GetSessionUsername() {
+    global AuthSessionFile
+    if (!FileExist(AuthSessionFile))
+        return ""
+    try {
+        raw := FileRead(AuthSessionFile, "UTF-8")
+        if (Ord(raw) = 0xFEFF)
+            raw := SubStr(raw, 2)
+        if RegExMatch(raw, '"username"\s*:\s*"([^"]+)"', &um)
+            return Trim(um[1])
+    } catch {
+    }
+    return ""
+}
+
+ClearSession() {
+    global AuthSessionFile
+    try FileDelete(AuthSessionFile)
 }
 
 HasValidSession() {
@@ -680,7 +795,9 @@ VerifyLogin(username, password) {
     resp := HttpRequest("POST", RTrim(AUTH_API_URL, "/") "/login", body, "application/json")
     if (InStr(resp, '"ok":true') || InStr(resp, '"ok": true'))
         return true
-    if (InStr(resp, "locked to another") || InStr(resp, "another PC") || InStr(resp, "hardware"))
+    if (InStr(resp, "hardware banned") || InStr(resp, "account is banned") || InStr(resp, "banned"))
+        throw Error("An error has occurred.")
+    if (InStr(resp, "locked to another") || InStr(resp, "another PC"))
         throw Error("This account is locked to another PC.")
     if (InStr(resp, "Invalid"))
         throw Error("Invalid username or password.")
